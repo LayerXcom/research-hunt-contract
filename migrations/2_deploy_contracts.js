@@ -1,5 +1,5 @@
-var VyperStorage = artifacts.require("VyperStorage");
+var Escrow = artifacts.require("Escrow");
 
 module.exports = function(deployer) {
-  deployer.deploy(VyperStorage);
+  deployer.deploy(Escrow);
 };
