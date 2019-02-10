@@ -50,6 +50,6 @@ contract("Escrow", ([account, payee]) => {
 
     const depositsOf = await escrow.depositsOf(payee);
 
-    assert.equal(depositsOf, amount - withdrawAmount, "The value " + amount + " was not withdrawn.");
+    assert.equal(depositsOf, amount - withdrawAmount, "The value " + withdrawAmount + " was not withdrawn.");
   });
 });
