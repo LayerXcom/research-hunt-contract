@@ -23,7 +23,7 @@ def depositsOf(_payee: address) -> wei_value:
 @payable
 def deposit(_payee: address):
     assert self.primary == msg.sender
-    assert not msg.value < 1
+    assert msg.value > 0
     amount: wei_value = msg.value
     self.deposits[_payee] = self.deposits[_payee] + amount
     log.Deposited(_payee, amount)
