@@ -32,6 +32,7 @@ def deposit(_payee: address):
 @payable
 def withdraw(_payee: address):
     assert self.primary == msg.sender
+    assert self.deposits[_payee] > 0
     payment: wei_value = self.deposits[_payee]
     self.deposits[_payee] = 0
     send(_payee, payment)
