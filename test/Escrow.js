@@ -3,7 +3,7 @@ const Escrow = artifacts.require("Escrow");
 const { expectThrow } = require('./helpers/expectThrow');
 
 contract("Escrow", ([account, payee]) => {
-  const amount = 12345;
+  const amount = 10000;
 
   it("should not be depositable the value 0 wei.", async () => {
     const escrow = await Escrow.deployed();
@@ -17,7 +17,7 @@ contract("Escrow", ([account, payee]) => {
     await expectThrow(escrow.withdraw(payee, {from: account}), 'revert');
   });
 
-  it("should be depositable the value 12345 wei.", async () => {
+  it("should be depositable the value 10000 wei.", async () => {
 
     const escrow = await Escrow.deployed();
 
@@ -39,7 +39,7 @@ contract("Escrow", ([account, payee]) => {
     assert.equal(depositsOf, 0, "The value " + amount + " was not withdrawn.");
   });
 
-  it("should be withdrawable the value 10000 wei (12345 deposited).", async () => {
+  it("should be withdrawable the value 10000 wei (10000 deposited).", async () => {
     const withdrawAmount = 10000;
 
     const escrow = await Escrow.deployed();
@@ -52,4 +52,15 @@ contract("Escrow", ([account, payee]) => {
 
     assert.equal(depositsOf, amount - withdrawAmount, "The value " + withdrawAmount + " was not withdrawn.");
   });
+
+  it("should be not withdrawable the value 10001 wei (10000 deposited).", async () => {
+    const withdrawAmount = 10001;
+
+    const escrow = await Escrow.deployed();
+
+    await escrow.deposit(payee, {from: account, value: amount});
+
+    await expectThrow(escrow.withdrawAmount(payee, withdrawAmount, {from: account}), 'revert');
+  });
+
 });

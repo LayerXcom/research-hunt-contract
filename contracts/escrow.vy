@@ -1,18 +1,41 @@
 # @dev Implementation of Base Escrow Contract.
 # @author Jun Katagiri (@akinama)
 
+#
 # Events
-Deposited: event({_payee: indexed(address), _weiAmount: wei_value})
-Withdrawn: event({_payee: indexed(address), _weiAmount: wei_value})
-PrimaryTransferred: event({_recipient: address})
+#
+Deposited: event({payee: indexed(address), weiAmount: wei_value})
+Withdrawn: event({payee: indexed(address), weiAmount: wei_value})
+PrimaryTransferred: event({recipient: address})
 
+#
+# State Variables
+#
+# The EOA of this contract
 primary: address
 
+# Deposits
 deposits: map(address, wei_value)
 
+#
+# Public Functions
+#
 @public
 def __init__():
+    assert self.primary == ZERO_ADDRESS
     self.primary = msg.sender
+    assert not self.primary == ZERO_ADDRESS
+
+@public
+def initialize():
+    assert self.primary == ZERO_ADDRESS
+    self.primary = msg.sender
+    assert not self.primary == ZERO_ADDRESS
+
+@public
+@constant
+def getPrimaryAddress() -> address:
+    return self.primary
 
 @public
 @constant
@@ -53,3 +76,5 @@ def transferPrimary(_recipient: address):
     assert self.primary == msg.sender
     log.PrimaryTransferred(_recipient)
     self.primary = _recipient
+
+
