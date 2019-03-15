@@ -60,6 +60,7 @@ def createResearchRequest():
         if self.requests[msg.sender][i].owner == ZERO_ADDRESS:
             self.currentSizes[msg.sender] += 1
             self.requests[msg.sender][i] = ResearchRequest({owner: msg.sender, deposit: 0, payout: 0})
+            log.RequestCreated(msg.sender, self.currentSizes[msg.sender])
             break
 
 @public

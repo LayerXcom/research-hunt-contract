@@ -9,7 +9,6 @@ contract("ResearchHunt", ([account, payee]) => {
     const researchHunt = await ResearchHunt.deployed();
 
     await researchHunt.createResearchRequest({from: account});
-    await researchHunt.createResearchRequest({from: account});
     var result = await researchHunt.createResearchRequest({from: account});
 
     truffleAssert.eventEmitted(result, 'RequestCreated', (ev) => {
