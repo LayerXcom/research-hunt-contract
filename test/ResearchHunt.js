@@ -8,8 +8,8 @@ contract("ResearchHunt", ([account, payee]) => {
   it("should be able to create ResearchRequest.", async () => {
     const researchHunt = await ResearchHunt.deployed();
 
-    await researchHunt.createResearchRequest({from: account});
-    var result = await researchHunt.createResearchRequest({from: account});
+    await researchHunt.createResearchRequest({from: account, value: 100});
+    var result = await researchHunt.createResearchRequest({from: account, value: 1000});
 
     truffleAssert.eventEmitted(result, 'RequestCreated', (ev) => {
       return ev.owner == account && ev.count == 2

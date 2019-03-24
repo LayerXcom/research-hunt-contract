@@ -44,17 +44,14 @@ def depositsOf(_payee: address) -> wei_value:
 
 @public
 @payable
-def deposit(_payee: address):
-    assert self.primary == msg.sender
-    assert msg.value > 0
-    amount: wei_value = msg.value
-    self.deposits[_payee] = self.deposits[_payee] + amount
-    log.Deposited(_payee, amount)
+def deposit(_payee: address, _value: wei_value):
+    assert _value > 0
+    self.deposits[_payee] = self.deposits[_payee] + _value
+    log.Deposited(_payee, _value)
 
 @public
 @payable
 def withdraw(_payee: address):
-    assert self.primary == msg.sender
     assert self.deposits[_payee] > 0
     payment: wei_value = self.deposits[_payee]
     self.deposits[_payee] = 0
