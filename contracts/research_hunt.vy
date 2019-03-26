@@ -24,14 +24,14 @@ contract Escrow:
 #
 # Events
 #
-RequestCreated: event({owner: indexed(address), count: uint256})
+RequestCreated: event({owner: indexed(address), weiAmount: wei_value})
 Deposited: event({payee: indexed(address), weiAmount: wei_value})
 Withdrawn: event({payee: indexed(address), weiAmount: wei_value})
 
 #
 # Constants
 #
-RESEARCH_REQUEST_LIST_SIZE: constant(uint256) = 2048
+RESEARCH_REQUEST_LIST_SIZE: constant(int128) = 65536
 
 #
 # State Variables
@@ -40,10 +40,7 @@ RESEARCH_REQUEST_LIST_SIZE: constant(uint256) = 2048
 escrow: address
 
 # Research Hunt Struct Mappings
-requests: map(address, ResearchRequest[RESEARCH_REQUEST_LIST_SIZE])
-
-# Current request size per address
-currentSizes: map(address, uint256)
+requests: ResearchRequest[RESEARCH_REQUEST_LIST_SIZE]
 
 #
 # Public Functions
@@ -56,32 +53,33 @@ def __init__(_escrowTemplate: address):
 
 @public
 @payable
-def createResearchRequest():
-    for i in range(RESEARCH_REQUEST_LIST_SIZE):
-        if self.requests[msg.sender][i].owner == ZERO_ADDRESS:
-            self.currentSizes[msg.sender] += 1
-            self.requests[msg.sender][i] = ResearchRequest({owner: msg.sender, deposit: 0, payout: 0})
-            Escrow(self.escrow).deposit(msg.sender, msg.value)
-            log.RequestCreated(msg.sender, self.currentSizes[msg.sender])
-            break
+def createResearchRequest(_requestId: int128):
+    assert _requestId < RESEARCH_REQUEST_LIST_SIZE
+    assert self.requests[_requestId].owner == ZERO_ADDRESS
+    self.requests[_requestId] = ResearchRequest({owner: msg.sender, deposit: msg.value, payout: 0})
+    Escrow(self.escrow).deposit(msg.sender, msg.value)
+    log.RequestCreated(msg.sender, msg.value)
 
 @public
 @payable
-def addDepositToRequest(_index: int128):
-   assert self.requests[msg.sender][_index].owner == msg.sender
-   self.requests[msg.sender][_index].deposit += msg.value
-   Escrow(self.escrow).deposit(msg.sender, msg.value)
-   log.Deposited(msg.sender, self.requests[msg.sender][_index].deposit)
+def addDepositToRequest(_requestId: int128):
+    assert _requestId < RESEARCH_REQUEST_LIST_SIZE
+    assert self.requests[_requestId].owner == msg.sender
+    self.requests[_requestId].deposit += msg.value
+    Escrow(self.escrow).deposit(msg.sender, msg.value)
+    log.Deposited(msg.sender, self.requests[_requestId].deposit)
 
 @public
 @payable
-def distribute(_index: int128, _receiver: address):
-   assert self.requests[msg.sender][_index].owner == msg.sender
-   assert msg.value <= self.requests[msg.sender][_index].deposit
-   Escrow(self.escrow).withdrawAmount(msg.sender, msg.value)
-   self.requests[msg.sender][_index].deposit -= msg.value
-   send(_receiver, msg.value)
-   log.Deposited(msg.sender, self.requests[msg.sender][_index].deposit)
+def distribute(_requestId: int128, _receiver: address, _amount: wei_value):
+    assert _requestId < RESEARCH_REQUEST_LIST_SIZE
+    assert self.requests[_requestId].owner == msg.sender
+    assert _amount <= self.requests[_requestId].deposit
+    Escrow(self.escrow).withdrawAmount(msg.sender, _amount)
+    self.requests[_requestId].deposit -= _amount
+    send(_receiver, _amount)
+    log.Withdrawn(msg.sender, _amount)
+    log.Withdrawn(msg.sender, self.requests[_requestId].deposit)
 
 @public
 @constant

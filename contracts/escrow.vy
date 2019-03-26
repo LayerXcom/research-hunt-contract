@@ -55,17 +55,14 @@ def withdraw(_payee: address):
     assert self.deposits[_payee] > 0
     payment: wei_value = self.deposits[_payee]
     self.deposits[_payee] = 0
-    send(_payee, payment)
     log.Withdrawn(_payee, payment)
 
 @public
 @payable
 def withdrawAmount(_payee: address, _amount: wei_value):
-    assert self.primary == msg.sender
     assert _amount <= self.deposits[_payee]
     payment: wei_value = _amount
-    self.deposits[_payee] = self.deposits[_payee] - _amount
-    send(_payee, payment)
+    self.deposits[_payee] -= _amount
     log.Withdrawn(_payee, payment)
 
 @public
