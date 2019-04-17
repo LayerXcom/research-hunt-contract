@@ -1,4 +1,4 @@
-export function increaseTime(duration) {
+function increaseTime(duration) {
   return new Promise((resolve, reject) => {
     web3.currentProvider.sendAsync({
       jsonrpc: '2.0',
@@ -10,4 +10,8 @@ export function increaseTime(duration) {
       resolve()
     })
   })
+}
+
+module.exports = {
+  increaseTime,
 }
