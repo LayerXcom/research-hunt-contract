@@ -11,21 +11,27 @@ struct ResearchRequest:
     createdAt: timestamp
     applicationEndAt: timestamp
     submissionEndAt: timestamp
+    distributionAt: timestamp
+    refundableAt: timestamp
     isCompleted: bool
 
 #
 # Events
 #
-RequestCreated: event({owner: indexed(address), weiAmount: wei_value, createdAt: timestamp, applicationEndAt: timestamp, submissionEndAt: timestamp})
+RequestCreated: event({owner: indexed(address), weiAmount: wei_value, createdAt: timestamp, applicationEndAt: timestamp, submissionEndAt: timestamp, distributionAt: timestamp, refundableAt: timestamp})
 Deposited: event({payee: indexed(address), weiAmount: wei_value})
 Withdrawn: event({payee: indexed(address), weiAmount: wei_value})
 OwnerTransferred: event({transfer: address})
+ApplicationMinimumTimespanChanged: event({applicationMinimumTimespan: timedelta})
+SubmissionMinimumTimespanChanged: event({submissionMinimumTimespan: timedelta})
+RefundableTimespanChanged: event({refundableTimespan: timedelta})
+DistributionEndTimespanChanged: event({distributionTimespan: timedelta})
 
 #
 # Constants
 #
 # 14 days
-DEFAULT_REFUNDABLE_TIMESPAN: constant(timedelta) = 1209600
+# DEFAULT_REFUNDABLE_TIMESPAN: constant(uint256(sec)) = 1209600
 
 #
 # State Variables
@@ -34,57 +40,46 @@ DEFAULT_REFUNDABLE_TIMESPAN: constant(timedelta) = 1209600
 owner: address
 
 # Deposits
-deposits: map(address, wei_value)
+deposits: map(uint256, map(address, wei_value))
 
 # Research Hunt Struct Mappings
 requests: map(uint256, ResearchRequest)
 
+# Distribution timespan
+distributionTimespan: timedelta
+
 # Refundable timespan
 refundableTimespan: timedelta
+
+# Minimum timespan of application
+applicationMinimumTimespan: timedelta
+
+# Minimum timespan of application
+submissionMinimumTimespan: timedelta
 
 #
 # Constructor
 #
 @public
 def __init__():
+    # Assign msg.sender to owner
     self.owner = msg.sender
-    self.refundableTimespan = DEFAULT_REFUNDABLE_TIMESPAN
 
-#
-# Administration Functions
-#
-@public
-def transferOwner(_transfer: address):
-    # Guard 1: only owner
-    assert self.owner == msg.sender
+    # Application Minimum Timespan is 1 day
+    self.applicationMinimumTimespan = 1 * 24 * 60 * 60
 
-    # the owner make change to transfer address
-    self.owner = _transfer
+    # Submission Minimum Timespan is 1 day
+    self.submissionMinimumTimespan = 1 * 24 * 60 * 60
 
-    # Event
-    log.OwnerTransferred(_transfer)
+    # DistributionTimespan is 3 Days
+    self.distributionTimespan = 3 * 24 * 60 * 60
 
-@public
-def setRefundableTimespan(_refundableTimespan: timedelta):
-    # Guard 1: only owner
-    assert self.owner == msg.sender
-
-    # Set refundable timespan (cannot assign by bug)
-    # self.refundableTimespan = _refundableTimespan
-
-@public
-@constant
-def getOwnerAddress() -> address:
-    return self.owner
+    # RefundableTimespan is 14 Days
+    self.refundableTimespan = 14 * 24 * 60 * 60
 
 #
 # Research Hunt Functions
 #
-@public
-@constant
-def depositsOf(_payee: address) -> wei_value:
-    return self.deposits[_payee]
-
 @public
 @payable
 def createResearchRequest(_requestId: uint256, _applicationEndAt: timestamp, _submissionEndAt: timestamp):
@@ -92,9 +87,12 @@ def createResearchRequest(_requestId: uint256, _applicationEndAt: timestamp, _su
     assert msg.value > 0
 
     # Guard 2: whether the timestamps are correctly
-    assert block.timestamp < _applicationEndAt and _applicationEndAt < _submissionEndAt
+    assert block.timestamp <= _applicationEndAt - self.applicationMinimumTimespan
 
-    # Guard 3: whether the request ID has already created
+    # Guard 3: whether the timestamps are correctly
+    assert _applicationEndAt <= _submissionEndAt - self.submissionMinimumTimespan
+
+    # Guard 4: whether the request ID has already created
     assert self.requests[_requestId].owner == ZERO_ADDRESS
 
     # Create research request
@@ -105,11 +103,13 @@ def createResearchRequest(_requestId: uint256, _applicationEndAt: timestamp, _su
         createdAt: block.timestamp,
         applicationEndAt: _applicationEndAt,
         submissionEndAt: _submissionEndAt,
+        distributionAt: _submissionEndAt + self.distributionTimespan,
+        refundableAt: block.timestamp + self.refundableTimespan,
         isCompleted: False
     })
 
     # Escrow
-    self.deposits[msg.sender] = self.deposits[msg.sender] + msg.value
+    self.deposits[_requestId][msg.sender] = self.deposits[_requestId][msg.sender] + msg.value
 
     # Event
     log.RequestCreated(
@@ -117,7 +117,9 @@ def createResearchRequest(_requestId: uint256, _applicationEndAt: timestamp, _su
         self.requests[_requestId].deposit,
         self.requests[_requestId].createdAt,
         self.requests[_requestId].applicationEndAt,
-        self.requests[_requestId].submissionEndAt)
+        self.requests[_requestId].submissionEndAt,
+        self.requests[_requestId].distributionAt,
+        self.requests[_requestId].refundableAt)
 
 @public
 @payable
@@ -132,7 +134,7 @@ def addDepositToRequest(_requestId: uint256):
     self.requests[_requestId].deposit = self.requests[_requestId].deposit + msg.value
 
     # Escrow
-    self.deposits[msg.sender] = self.deposits[msg.sender] + msg.value
+    self.deposits[_requestId][msg.sender] = self.deposits[_requestId][msg.sender] + msg.value
 
     # Event
     log.Deposited(msg.sender, self.requests[_requestId].deposit)
@@ -153,16 +155,19 @@ def distribute(_requestId: uint256, _receiver: address, _amount: wei_value):
     assert self.requests[_requestId].owner == msg.sender
 
     # Guard 5: whether the deposited amount is greater than or equal the distributed
-    assert _amount <= self.requests[_requestId].deposit
+    assert _amount <= self.requests[_requestId].deposit - self.requests[_requestId].payout
 
     # Guard 6: whether the total deposited amount is greater than or equal the distributed
-    assert _amount <= self.deposits[msg.sender]
+    assert _amount <= self.deposits[_requestId][msg.sender]
 
-    # Update the research request deposited amount
-    self.requests[_requestId].deposit = self.requests[_requestId].deposit - _amount
+    # Update the deposits amount
+    self.deposits[_requestId][msg.sender] = self.deposits[_requestId][msg.sender] - _amount
 
     # Update the research request paid out amount
     self.requests[_requestId].payout = self.requests[_requestId].payout + _amount
+
+    # Update the research request completed flag
+    self.requests[_requestId].isCompleted = True
 
     # Send the amount to the receiver address
     send(_receiver, _amount)
@@ -174,19 +179,84 @@ def distribute(_requestId: uint256, _receiver: address, _amount: wei_value):
 @payable
 def refund(_requestId: uint256):
     # Guard 1: whether the address is not sender address
-    assert not msg.sender == self.requests[_requestId].owner
+    assert msg.sender == self.requests[_requestId].owner
 
     # Guard 2: whether the current timestamp has gone over the submission end at
-    assert block.timestamp > self.requests[_requestId].submissionEndAt + self.refundableTimespan
+    assert self.requests[_requestId].refundableAt <= block.timestamp
+ 
+    # Culculate remain wei_value
+    amount: wei_value = self.requests[_requestId].deposit - self.requests[_requestId].payout
+
+    # Update the deposits amount
+    self.deposits[_requestId][msg.sender] = self.deposits[_requestId][msg.sender] - amount
 
     # Update the research request payout
-    self.requests[_requestId].payout = self.requests[_requestId].deposit
+    self.requests[_requestId].payout = self.requests[_requestId].payout + amount
 
     # Update the research request completed flag
     self.requests[_requestId].isCompleted = True
 
     # Send the amount to the receiver address
-    send(msg.sender, self.requests[_requestId].payout)
+    send(msg.sender, amount)
 
     # Event
-    log.Withdrawn(msg.sender, self.requests[_requestId].deposit)
+    log.Withdrawn(msg.sender, amount)
+
+#
+# OwnerOnly Functions
+#
+@public
+def transferOwner(_transferTo: address):
+    # Guard 1: only owner
+    assert self.owner == msg.sender
+
+    # the owner make change to transfer address
+    self.owner = _transferTo
+
+    # Event
+    log.OwnerTransferred(_transferTo)
+
+@public
+def setApplicationTimespan(_applicationMinimumTimespan: timedelta):
+    # Guard 1: only owner
+    assert self.owner == msg.sender
+
+    # Set application minimum timespan
+    self.applicationMinimumTimespan = _applicationMinimumTimespan
+
+    # Event
+    log.ApplicationMinimumTimespanChanged(self.applicationMinimumTimespan)
+
+@public
+def setSubmissionTimespan(_submissionMinimumTimespan: timedelta):
+    # Guard 1: only owner
+    assert self.owner == msg.sender
+
+    # Set submission timespan
+    self.submissionMinimumTimespan = _submissionMinimumTimespan
+
+    # Event
+    log.SubmissionMinimumTimespanChanged(self.submissionMinimumTimespan)
+
+@public
+def setDistributionEndTimespan(_distributionTimespan: timedelta):
+    # Guard 1: only owner
+    assert self.owner == msg.sender
+
+    # Set distribution timespan
+    self.distributionTimespan = _distributionTimespan
+
+    # Event
+    log.DistributionEndTimespanChanged(self.refundableTimespan)
+
+
+@public
+def setRefundableTimespan(_refundableTimespan: timedelta):
+    # Guard 1: only owner
+    assert self.owner == msg.sender
+
+    # Set refundable timespan
+    self.refundableTimespan = _refundableTimespan
+
+    # Event
+    log.RefundableTimespanChanged(self.refundableTimespan)

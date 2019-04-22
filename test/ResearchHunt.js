@@ -11,68 +11,120 @@ const { increaseTime } = require('./helpers/increaseTime');
 const { convertToUnixtime } = require('./helpers/convertToUnixtime');
 
 contract("ResearchHunt", ([account, payee]) => {
+  // eth amount for test
   const amount = 10000;
 
+  // reference time
   const referenceTime = new Date();
+
+  // time
+  let applicationEndAt = null;
+  let submissionEndAt = null;
+
+  // before action
+  beforeEach(async function () {
+    applicationEndAt = _.cloneDeep(referenceTime)
+    submissionEndAt = _.cloneDeep(referenceTime)
+  });
 
   it ("should be created a research request with ", async () => {
     const researchHunt = await ResearchHunt.deployed();
 
-    const applicationEndAt = _.cloneDeep(referenceTime);
     applicationEndAt.setDate(applicationEndAt.getDate() + 1);
     const applicationEndAtUnixtime = convertToUnixtime(applicationEndAt);
 
-    const submissionEndAt = _.cloneDeep(referenceTime);
     submissionEndAt.setDate(submissionEndAt.getDate() + 2);
     const submissionEndAtUnixtime = convertToUnixtime(submissionEndAt);
 
-    const result = await researchHunt.createResearchRequest(1, applicationEndAtUnixtime, submissionEndAtUnixtime, {from: account, value: 1000});
+    const result = await researchHunt.createResearchRequest(
+      1, applicationEndAtUnixtime, submissionEndAtUnixtime, {from: account, value: amount});
 
     truffleAssert.eventEmitted(result, 'RequestCreated', (ev) => {
-      return ev.owner == account && ev.weiAmount == 1000
+      return ev.owner == account && ev.weiAmount == amount
     }, 'RequestCreated event should be emitted.');
   });
 
-  it ("should not be created a research request with value 0 wei", async () => {
+   it ("should not be created a research request with same research request ID", async () => {
     const researchHunt = await ResearchHunt.deployed();
 
-    const applicationEndAt = _.cloneDeep(referenceTime);
     applicationEndAt.setDate(applicationEndAt.getDate() + 1);
     const applicationEndAtUnixtime = convertToUnixtime(applicationEndAt);
 
-    const submissionEndAt = _.cloneDeep(referenceTime);
     submissionEndAt.setDate(submissionEndAt.getDate() + 2);
     const submissionEndAtUnixtime = convertToUnixtime(submissionEndAt);
 
-    await expectThrow(researchHunt.createResearchRequest(1, applicationEndAtUnixtime, submissionEndAtUnixtime, {from: account, value: 0}));
+    await expectThrow(researchHunt.createResearchRequest(
+      1, applicationEndAtUnixtime, submissionEndAtUnixtime, {from: account, value: amount}));
   });
 
-  it ("should not be created a research request with ", async () => {
+
+  it ("should not be created a research request with value 0 wei", async () => {const researchHunt = await ResearchHunt.deployed();
+
+    applicationEndAt.setDate(applicationEndAt.getDate() + 1);
+    const applicationEndAtUnixtime = convertToUnixtime(applicationEndAt);
+
+    submissionEndAt.setDate(submissionEndAt.getDate() + 2);
+    const submissionEndAtUnixtime = convertToUnixtime(submissionEndAt);
+
+    await expectThrow(researchHunt.createResearchRequest(
+      1, applicationEndAtUnixtime, submissionEndAtUnixtime, {from: account, value: 0}));
+  });
+
+  it ("should not be created a research request with applicationEndAt > submissionEndAt", async () => {
     const researchHunt = await ResearchHunt.deployed();
 
-    const applicationEndAt = _.cloneDeep(referenceTime);
     applicationEndAt.setDate(applicationEndAt.getDate() + 2);
     const applicationEndAtUnixtime = convertToUnixtime(applicationEndAt);
 
-    const submissionEndAt = _.cloneDeep(referenceTime);
     submissionEndAt.setDate(submissionEndAt.getDate() + 1);
     const submissionEndAtUnixtime = convertToUnixtime(submissionEndAt);
 
-    await expectThrow(researchHunt.createResearchRequest(1, applicationEndAtUnixtime, submissionEndAtUnixtime, {from: account, value: 1000}));
+    await expectThrow(researchHunt.createResearchRequest(
+      1, applicationEndAtUnixtime, submissionEndAtUnixtime, {from: account, value: amount}));
   });
 
-  it ("should not be created a research request with ", async () => {
+  it ("should not be created a research request with referenceTime > applicationEndAt, submissionEndAt", async () => {
     const researchHunt = await ResearchHunt.deployed();
 
-    const applicationEndAt = _.cloneDeep(referenceTime);
     applicationEndAt.setDate(applicationEndAt.getDate() - 1);
     const applicationEndAtUnixtime = convertToUnixtime(applicationEndAt);
 
-    const submissionEndAt = _.cloneDeep(referenceTime);
     submissionEndAt.setDate(submissionEndAt.getDate() - 2);
     const submissionEndAtUnixtime = convertToUnixtime(submissionEndAt);
 
-    await expectThrow(researchHunt.createResearchRequest(1, applicationEndAtUnixtime, submissionEndAtUnixtime, {from: account, value: 1000}));
+    await expectThrow(researchHunt.createResearchRequest(
+      1, applicationEndAtUnixtime, submissionEndAtUnixtime, {from: account, value: amount}));
+  });
+
+  it ("should be set refundable timespan", async () => {
+    const researchHunt = await ResearchHunt.deployed();
+
+    const result = await researchHunt.setRefundableTimespan(18 * 24 * 60 * 60, {from: account});
+
+    truffleAssert.eventEmitted(result, 'RefundableTimespanChanged', (ev) => {
+      return ev.refundableTimespan == (18 * 24 * 60 * 60)
+    }, 'RefundableTimespanChanged event should be emitted.');
+  });
+
+  it ("should be refunded with correct refund timespan", async () => {
+    const researchHunt = await ResearchHunt.deployed();
+
+    applicationEndAt.setDate(applicationEndAt.getDate() + 1);
+    const applicationEndAtUnixtime = convertToUnixtime(applicationEndAt);
+
+    submissionEndAt.setDate(submissionEndAt.getDate() + 2);
+    const submissionEndAtUnixtime = convertToUnixtime(submissionEndAt);
+
+    const resultCreateResearchRequest = await researchHunt.createResearchRequest(
+      2, applicationEndAtUnixtime, submissionEndAtUnixtime, {from: account, value: amount});
+
+    await increaseTime(18 * 24 * 60 * 60);
+
+    const resultRefund = await researchHunt.refund(2, {from: account});
+
+    truffleAssert.eventEmitted(resultRefund, 'Withdrawn', (ev) => {
+      return ev.weiAmount == amount
+    }, 'Withdrawn event should be emitted.');
   });
 
     /*
