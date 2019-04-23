@@ -249,7 +249,6 @@ def setDistributionEndTimespan(_distributionTimespan: timedelta):
     # Event
     log.DistributionEndTimespanChanged(self.refundableTimespan)
 
-
 @public
 def setRefundableTimespan(_refundableTimespan: timedelta):
     # Guard 1: only owner
