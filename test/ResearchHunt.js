@@ -18,8 +18,8 @@ contract("ResearchHunt", ([account, payee]) => {
   const referenceTime = new Date();
 
   // time
-  let applicationEndAt = null;
-  let submissionEndAt = null;
+  let applicationEndAt;
+  let submissionEndAt;
 
   // snapshot
   let snapshotId;
