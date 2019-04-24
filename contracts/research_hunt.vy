@@ -54,7 +54,7 @@ refundableTimespan: timedelta
 # Minimum timespan of application
 applicationMinimumTimespan: timedelta
 
-# Minimum timespan of application
+# Minimum timespan of submission 
 submissionMinimumTimespan: timedelta
 
 #
@@ -104,7 +104,7 @@ def createResearchRequest(_requestId: uint256, _applicationEndAt: timestamp, _su
         applicationEndAt: _applicationEndAt,
         submissionEndAt: _submissionEndAt,
         distributionAt: _submissionEndAt + self.distributionTimespan,
-        refundableAt: block.timestamp + self.refundableTimespan,
+        refundableAt: _submissionEndAt + self.refundableTimespan,
         isCompleted: False
     })
 
@@ -217,7 +217,7 @@ def transferOwner(_transferTo: address):
     log.OwnerTransferred(_transferTo)
 
 @public
-def setApplicationTimespan(_applicationMinimumTimespan: timedelta):
+def setApplicationMinimumTimespan(_applicationMinimumTimespan: timedelta):
     # Guard 1: only owner
     assert self.owner == msg.sender
 
@@ -228,7 +228,7 @@ def setApplicationTimespan(_applicationMinimumTimespan: timedelta):
     log.ApplicationMinimumTimespanChanged(self.applicationMinimumTimespan)
 
 @public
-def setSubmissionTimespan(_submissionMinimumTimespan: timedelta):
+def setSubmissionMinimumTimespan(_submissionMinimumTimespan: timedelta):
     # Guard 1: only owner
     assert self.owner == msg.sender
 
@@ -247,7 +247,7 @@ def setDistributionEndTimespan(_distributionTimespan: timedelta):
     self.distributionTimespan = _distributionTimespan
 
     # Event
-    log.DistributionEndTimespanChanged(self.refundableTimespan)
+    log.DistributionEndTimespanChanged(self.distributionTimespan)
 
 @public
 def setRefundableTimespan(_refundableTimespan: timedelta):
