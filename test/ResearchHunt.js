@@ -110,7 +110,7 @@ contract("ResearchHunt", ([account, payee]) => {
     const result = await researchHunt.setDistributionEndTimespan(4 * 24 * 60 * 60, { from: account });
 
     truffleAssert.eventEmitted(result, 'DistributionEndTimespanChanged', (ev) => {
-      return ev.distributionTimespan == (4 * 24 * 60 * 60)
+      return ev.distributionEndTimespan == (4 * 24 * 60 * 60)
     }, 'DistributionEndTimespanChanged event should be emitted.');
   });
 
@@ -124,7 +124,7 @@ contract("ResearchHunt", ([account, payee]) => {
     }, 'RefundableTimespanChanged event should be emitted.');
   });
 
-  it("should be refunded with correct refund timespan", async () => {
+  it("should be refunded with correct refundable timespan", async () => {
     const researchHunt = await ResearchHunt.deployed();
 
     const result = await researchHunt.createResearchRequest(1,

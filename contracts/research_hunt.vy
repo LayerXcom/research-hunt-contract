@@ -25,7 +25,7 @@ OwnerTransferred: event({transfer: address})
 ApplicationMinimumTimespanChanged: event({applicationMinimumTimespan: timedelta})
 SubmissionMinimumTimespanChanged: event({submissionMinimumTimespan: timedelta})
 RefundableTimespanChanged: event({refundableTimespan: timedelta})
-DistributionEndTimespanChanged: event({distributionTimespan: timedelta})
+DistributionEndTimespanChanged: event({distributionEndTimespan: timedelta})
 
 #
 # Constants
@@ -46,7 +46,7 @@ deposits: map(uint256, map(address, wei_value))
 requests: map(uint256, ResearchRequest)
 
 # Distribution timespan
-distributionTimespan: timedelta
+distributionEndTimespan: timedelta
 
 # Refundable timespan
 refundableTimespan: timedelta
@@ -72,7 +72,7 @@ def __init__():
     self.submissionMinimumTimespan = 1 * 24 * 60 * 60
 
     # DistributionTimespan is 3 Days
-    self.distributionTimespan = 3 * 24 * 60 * 60
+    self.distributionEndTimespan = 3 * 24 * 60 * 60
 
     # RefundableTimespan is 14 Days
     self.refundableTimespan = 14 * 24 * 60 * 60
@@ -96,17 +96,17 @@ def createResearchRequest(_requestId: uint256, _applicationEndAt: timestamp, _su
     assert self.requests[_requestId].owner == ZERO_ADDRESS
 
     # Create research request
-    self.requests[_requestId] = ResearchRequest({
+    self.requests[_requestId] = ResearchRequest(
+        {
         owner: msg.sender,
         deposit: msg.value,
         payout: 0,
         createdAt: block.timestamp,
         applicationEndAt: _applicationEndAt,
         submissionEndAt: _submissionEndAt,
-        distributionAt: _submissionEndAt + self.distributionTimespan,
+        distributionAt: _submissionEndAt + self.distributionEndTimespan,
         refundableAt: _submissionEndAt + self.refundableTimespan,
-        isCompleted: False
-    })
+        isCompleted: False })
 
     # Escrow
     self.deposits[_requestId][msg.sender] = self.deposits[_requestId][msg.sender] + msg.value
@@ -221,6 +221,9 @@ def setApplicationMinimumTimespan(_applicationMinimumTimespan: timedelta):
     # Guard 1: only owner
     assert self.owner == msg.sender
 
+    # Guard 2: Positive value
+    assert _applicationMinimumTimespan > 0
+
     # Set application minimum timespan
     self.applicationMinimumTimespan = _applicationMinimumTimespan
 
@@ -232,6 +235,9 @@ def setSubmissionMinimumTimespan(_submissionMinimumTimespan: timedelta):
     # Guard 1: only owner
     assert self.owner == msg.sender
 
+    # Guard 2: Positive value
+    assert _submissionMinimumTimespan > 0
+
     # Set submission timespan
     self.submissionMinimumTimespan = _submissionMinimumTimespan
 
@@ -239,20 +245,26 @@ def setSubmissionMinimumTimespan(_submissionMinimumTimespan: timedelta):
     log.SubmissionMinimumTimespanChanged(self.submissionMinimumTimespan)
 
 @public
-def setDistributionEndTimespan(_distributionTimespan: timedelta):
+def setDistributionEndTimespan(_distributionEndTimespan: timedelta):
     # Guard 1: only owner
     assert self.owner == msg.sender
 
+    # Guard 2: Positive value
+    assert _distributionEndTimespan > 0
+
     # Set distribution timespan
-    self.distributionTimespan = _distributionTimespan
+    self.distributionEndTimespan = _distributionEndTimespan
 
     # Event
-    log.DistributionEndTimespanChanged(self.distributionTimespan)
+    log.DistributionEndTimespanChanged(self.distributionEndTimespan)
 
 @public
 def setRefundableTimespan(_refundableTimespan: timedelta):
     # Guard 1: only owner
     assert self.owner == msg.sender
+
+    # Guard 2: Positive value
+    assert _refundableTimespan > 0
 
     # Set refundable timespan
     self.refundableTimespan = _refundableTimespan
