@@ -12,6 +12,8 @@ contract("ResearchHunt", ([account, payee]) => {
   // eth amount for test
   const amount = 10000;
 
+  const uuid = "0x1111111111111111111111111111111111111111111111111111111111111111"
+
   // snapshot
   let snapshotId;
 
@@ -29,7 +31,7 @@ contract("ResearchHunt", ([account, payee]) => {
   it("should be created a research request with ", async () => {
     const researchHunt = await ResearchHunt.deployed();
 
-    const result = await researchHunt.createResearchRequest(1,
+    const result = await researchHunt.createResearchRequest(uuid,
       moment().add(2, 'days').unix(),
       moment().add(4, 'days').unix(),
       { from: account, value: amount });
@@ -42,7 +44,7 @@ contract("ResearchHunt", ([account, payee]) => {
   it("should not be created a research request with same research request ID", async () => {
     const researchHunt = await ResearchHunt.deployed();
 
-    const result = await researchHunt.createResearchRequest(1,
+    const result = await researchHunt.createResearchRequest(uuid,
       moment().add(2, 'days').unix(),
       moment().add(4, 'days').unix(),
       { from: account, value: amount });
@@ -51,7 +53,7 @@ contract("ResearchHunt", ([account, payee]) => {
       return ev.owner == account && ev.weiAmount == amount
     }, 'RequestCreated event should be emitted.');
 
-    await expectThrow(researchHunt.createResearchRequest(1,
+    await expectThrow(researchHunt.createResearchRequest(uuid,
       moment().add(2, 'days').unix(),
       moment().add(4, 'days').unix(),
       { from: account, value: amount }));
@@ -60,7 +62,7 @@ contract("ResearchHunt", ([account, payee]) => {
   it("should not be created a research request with value 0 wei", async () => {
     const researchHunt = await ResearchHunt.deployed();
 
-    await expectThrow(researchHunt.createResearchRequest(1,
+    await expectThrow(researchHunt.createResearchRequest(uuid,
       moment().add(2, 'days').unix(),
       moment().add(4, 'days').unix(),
       { from: account, value: 0 }));
@@ -69,7 +71,7 @@ contract("ResearchHunt", ([account, payee]) => {
   it("should not be created a research request with applicationEndAt > submissionEndAt", async () => {
     const researchHunt = await ResearchHunt.deployed();
 
-    await expectThrow(researchHunt.createResearchRequest(1,
+    await expectThrow(researchHunt.createResearchRequest(uuid,
       moment().add(4, 'days').unix(),
       moment().add(2, 'days').unix(),
       { from: account, value: amount }));
@@ -78,7 +80,7 @@ contract("ResearchHunt", ([account, payee]) => {
   it("should not be created a research request with referenceTime > applicationEndAt, submissionEndAt", async () => {
     const researchHunt = await ResearchHunt.deployed();
 
-    await expectThrow(researchHunt.createResearchRequest(1,
+    await expectThrow(researchHunt.createResearchRequest(uuid,
       moment().subtract(2, 'days').unix(),
       moment().subtract(4, 'days').unix(),
       { from: account, value: amount }));
@@ -106,7 +108,6 @@ contract("ResearchHunt", ([account, payee]) => {
 
   it("should be set distribution end timespan", async () => {
     const researchHunt = await ResearchHunt.deployed();
-
     const result = await researchHunt.setDistributionEndTimespan(4 * 24 * 60 * 60, { from: account });
 
     truffleAssert.eventEmitted(result, 'DistributionEndTimespanChanged', (ev) => {
@@ -127,14 +128,14 @@ contract("ResearchHunt", ([account, payee]) => {
   it("should be refunded with correct refundable timespan", async () => {
     const researchHunt = await ResearchHunt.deployed();
 
-    const result = await researchHunt.createResearchRequest(1,
+    const result = await researchHunt.createResearchRequest(uuid,
       moment().add(2, 'days').unix(),
       moment().add(4, 'days').unix(),
       { from: account, value: amount });
 
     await testrpc.advanceTime(18 * 24 * 60 * 60);
 
-    const resultRefund = await researchHunt.refund(1, { from: account });
+    const resultRefund = await researchHunt.refund(uuid, { from: account });
 
     truffleAssert.eventEmitted(resultRefund, 'Withdrawn', (ev) => {
       return ev.weiAmount == amount
@@ -144,30 +145,56 @@ contract("ResearchHunt", ([account, payee]) => {
   it("should not be refunded with incorrect refund timespan", async () => {
     const researchHunt = await ResearchHunt.deployed();
 
-    await researchHunt.createResearchRequest(1,
+    await researchHunt.createResearchRequest(uuid,
       moment().add(2, 'days').unix(),
       moment().add(4, 'days').unix(),
       { from: account, value: amount });
 
     await testrpc.advanceTime(18 * 24 * 60 * 60 - 1);
 
-    await expectThrow(researchHunt.refund(1, { from: account }));
+    await expectThrow(researchHunt.refund(uuid, { from: account }));
   });
 
   it("should be distributed with correct distribution timespan", async () => {
     const researchHunt = await ResearchHunt.deployed();
 
-    await researchHunt.createResearchRequest(1,
+    await researchHunt.createResearchRequest(uuid,
       moment().add(2, 'days').unix(),
       moment().add(4, 'days').unix(),
       { from: account, value: amount });
 
     await testrpc.advanceTime(4 * 24 * 60 * 60 + 1);
 
-    const resultDistribute = await researchHunt.distribute(1, payee, amount, { from: account });
+    const resultDistribute = await researchHunt.distribute(uuid, payee, amount, { from: account });
 
     truffleAssert.eventEmitted(resultDistribute, 'Withdrawn', (ev) => {
       return ev.weiAmount == amount
     }, 'Withdrawn event should be emitted.');
+  });
+
+  it("should not be distributed with incorrect distribution timespan", async () => {
+    const researchHunt = await ResearchHunt.deployed();
+
+    await researchHunt.createResearchRequest(uuid,
+      moment().add(2, 'days').unix(),
+      moment().add(4, 'days').unix(),
+      { from: account, value: amount });
+
+    await testrpc.advanceTime(4 * 24 * 60 * 60 );
+
+    await expectThrow(researchHunt.distribute(uuid, payee, amount, { from: account }));
+  });
+
+  it("should not be distributed with incorrect amount", async () => {
+    const researchHunt = await ResearchHunt.deployed();
+
+    await researchHunt.createResearchRequest(uuid,
+      moment().add(2, 'days').unix(),
+      moment().add(4, 'days').unix(),
+      { from: account, value: amount });
+
+    await testrpc.advanceTime(4 * 24 * 60 * 60 + 1);
+
+    await expectThrow(researchHunt.distribute(uuid, payee, amount + 1, { from: account }));
   });
 });

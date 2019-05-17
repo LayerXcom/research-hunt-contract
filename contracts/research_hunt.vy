@@ -2,10 +2,16 @@
 # @author Jun Katagiri (@akinama)
 
 #
+# The purpose of this contract is 
+#
+
+
+#
 # Structs
 #
 struct ResearchRequest:
     owner: address
+    uuid: bytes32
     deposit: wei_value
     payout: wei_value
     createdAt: timestamp
@@ -13,14 +19,22 @@ struct ResearchRequest:
     submissionEndAt: timestamp
     distributionAt: timestamp
     refundableAt: timestamp
+    reports: bytes32[8]
+    reporters: address[8]
+    reporterRewards: wei_value[8]
+    reportersCount: int128
     isCompleted: bool
 
 #
 # Events
 #
-RequestCreated: event({owner: indexed(address), weiAmount: wei_value, createdAt: timestamp, applicationEndAt: timestamp, submissionEndAt: timestamp, distributionAt: timestamp, refundableAt: timestamp})
-Deposited: event({payee: indexed(address), weiAmount: wei_value})
-Withdrawn: event({payee: indexed(address), weiAmount: wei_value})
+# RequestCreated: event({uuid: indexed(bytes32), owner: indexed(address), weiAmount: wei_value, createdAt: timestamp, applicationEndAt: timestamp, submissionEndAt: timestamp, distributionAt: timestamp, refundableAt: timestamp})
+RequestCreated: event({uuid: bytes32, owner: address, deposit: wei_value, createdAt: timestamp, applicationEndAt: timestamp, submissionEndAt: timestamp, distributionAt: timestamp, refundableAt: timestamp})
+Deposited: event({uuid: indexed(bytes32), payer: indexed(address), weiAmount: wei_value})
+Distributed: event({uuid: indexed(bytes32), payee: indexed(address), weiAmount: wei_value})
+Refunded: event({uuid: indexed(bytes32), payee: indexed(address), weiAmount: wei_value})
+Applied: event({uuid: indexed(bytes32), applicant: indexed(address)})
+Submitted: event({uuid: indexed(bytes32), applicant: indexed(address), ipfsHash: bytes32})
 OwnerTransferred: event({transfer: address})
 ApplicationMinimumTimespanChanged: event({applicationMinimumTimespan: timedelta})
 SubmissionMinimumTimespanChanged: event({submissionMinimumTimespan: timedelta})
@@ -40,10 +54,10 @@ DistributionEndTimespanChanged: event({distributionEndTimespan: timedelta})
 owner: address
 
 # Deposits
-deposits: map(uint256, map(address, wei_value))
+deposits: map(bytes32, map(address, wei_value))
 
 # Research Hunt Struct Mappings
-requests: map(uint256, ResearchRequest)
+requests: map(bytes32, ResearchRequest)
 
 # Distribution timespan
 distributionEndTimespan: timedelta
@@ -82,23 +96,23 @@ def __init__():
 #
 @public
 @payable
-def createResearchRequest(_requestId: uint256, _applicationEndAt: timestamp, _submissionEndAt: timestamp):
+def createResearchRequest(_uuid: bytes32, _applicationEndAt: timestamp, _submissionEndAt: timestamp):
     # Guard 1: whether the deposit amount is greater than 0 wei
     assert msg.value > 0
 
     # Guard 2: whether the timestamps are correctly
-    assert block.timestamp <= _applicationEndAt - self.applicationMinimumTimespan
+    assert block.timestamp + self.applicationMinimumTimespan <= _applicationEndAt
 
     # Guard 3: whether the timestamps are correctly
-    assert _applicationEndAt <= _submissionEndAt - self.submissionMinimumTimespan
+    assert _applicationEndAt + self.submissionMinimumTimespan <= _submissionEndAt
 
     # Guard 4: whether the request ID has already created
-    assert self.requests[_requestId].owner == ZERO_ADDRESS
+    assert self.requests[_uuid].owner == ZERO_ADDRESS
 
     # Create research request
-    self.requests[_requestId] = ResearchRequest(
-        {
+    self.requests[_uuid] = ResearchRequest({
         owner: msg.sender,
+        uuid: _uuid,
         deposit: msg.value,
         payout: 0,
         createdAt: block.timestamp,
@@ -106,42 +120,105 @@ def createResearchRequest(_requestId: uint256, _applicationEndAt: timestamp, _su
         submissionEndAt: _submissionEndAt,
         distributionAt: _submissionEndAt + self.distributionEndTimespan,
         refundableAt: _submissionEndAt + self.refundableTimespan,
+        reports: [EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32],
+        reporters: [ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS],
+        reporterRewards: [0, 0, 0, 0, 0, 0, 0, 0],
+        reportersCount: 0,
         isCompleted: False })
 
     # Escrow
-    self.deposits[_requestId][msg.sender] = self.deposits[_requestId][msg.sender] + msg.value
+    self.deposits[_uuid][msg.sender] = self.deposits[_uuid][msg.sender] + msg.value
 
     # Event
     log.RequestCreated(
-        self.requests[_requestId].owner,
-        self.requests[_requestId].deposit,
-        self.requests[_requestId].createdAt,
-        self.requests[_requestId].applicationEndAt,
-        self.requests[_requestId].submissionEndAt,
-        self.requests[_requestId].distributionAt,
-        self.requests[_requestId].refundableAt)
+        self.requests[_uuid].uuid,
+        self.requests[_uuid].owner,
+        self.requests[_uuid].deposit,
+        self.requests[_uuid].createdAt,
+        self.requests[_uuid].applicationEndAt,
+        self.requests[_uuid].submissionEndAt,
+        self.requests[_uuid].distributionAt,
+        self.requests[_uuid].refundableAt)
 
 @public
 @payable
-def addDepositToRequest(_requestId: uint256):
+def applicateResearchReport(_uuid: bytes32):
+    # Guard 1: whether the timestamps are correctly
+    assert block.timestamp < self.requests[_uuid].applicationEndAt
+
+    # Guard 2: whether the request ID has already created
+    assert not self.requests[_uuid].owner == ZERO_ADDRESS
+
+    # Guard 3: whether the request owner is the sender
+    assert not self.requests[_uuid].owner == msg.sender 
+
+    # Sender including flag
+    hasApplied: bool = False
+
+    # Get sender index
+    for index in range(16):
+        if self.requests[_uuid].reporters[index] == msg.sender:
+            hasApplied = True
+            break
+
+    # Guard 4: whether the sender already applicated
+    assert not hasApplied
+
+    # Add reporter
+    self.requests[_uuid].reporters[self.requests[_uuid].reportersCount] = msg.sender
+
+    # Event
+    log.Applied(_uuid, msg.sender)
+
+@public
+@payable
+def submitResearchReport(_uuid: bytes32, _ipfsHash: bytes32):
+    # Guard 1: whether the timestamps are correctly
+    assert self.requests[_uuid].applicationEndAt < block.timestamp and block.timestamp < self.requests[_uuid].submissionEndAt
+
+    # Sender including flag
+    hasApplied: bool = False
+
+    # Sender index
+    senderIndex: int128 = 0
+
+    # Get sender index
+    for index in range(16):
+        if self.requests[_uuid].reporters[index] == msg.sender:
+            senderIndex = index
+            hasApplied = True
+            break
+    
+    # Guard 2: Sender has applicated
+    assert hasApplied
+
+    # Add reporter
+    self.requests[_uuid].reports[senderIndex] = _ipfsHash
+
+    # Event
+    log.Submitted(_uuid, msg.sender, _ipfsHash)
+
+@public
+@payable
+def addDepositToRequest(_uuid: bytes32):
     # Guard 1: whether the deposit amount is greater than 0 wei
     assert msg.value > 0
 
     # Guard 2: whether the request ID is same as sender address
-    assert self.requests[_requestId].owner == msg.sender
+    assert self.requests[_uuid].owner == msg.sender
 
     # Update the research request deposited amount
-    self.requests[_requestId].deposit = self.requests[_requestId].deposit + msg.value
+    self.requests[_uuid].deposit = self.requests[_uuid].deposit + msg.value
 
     # Escrow
-    self.deposits[_requestId][msg.sender] = self.deposits[_requestId][msg.sender] + msg.value
+    self.deposits[_uuid][msg.sender] = self.deposits[_uuid][msg.sender] + msg.value
 
     # Event
-    log.Deposited(msg.sender, self.requests[_requestId].deposit)
+    log.Deposited(_uuid, msg.sender, self.requests[_uuid].deposit)
 
 @public
 @payable
-def distribute(_requestId: uint256, _receiver: address, _amount: wei_value):
+def distribute(_uuid: bytes32, _receiver: address, _amount: wei_value):
     # Guard 1: whether the distributing amount is greater than 0 wei
     assert _amount > 0
 
@@ -149,58 +226,58 @@ def distribute(_requestId: uint256, _receiver: address, _amount: wei_value):
     assert not msg.sender == _receiver
 
     # Guard 3: whether the current timestamp has gone over the submission end at
-    assert block.timestamp > self.requests[_requestId].submissionEndAt
+    assert block.timestamp > self.requests[_uuid].submissionEndAt
 
     # Guard 4: whether the request ID is same as sender address
-    assert self.requests[_requestId].owner == msg.sender
+    assert self.requests[_uuid].owner == msg.sender
 
     # Guard 5: whether the deposited amount is greater than or equal the distributed
-    assert _amount <= self.requests[_requestId].deposit - self.requests[_requestId].payout
+    assert _amount <= self.requests[_uuid].deposit - self.requests[_uuid].payout
 
     # Guard 6: whether the total deposited amount is greater than or equal the distributed
-    assert _amount <= self.deposits[_requestId][msg.sender]
+    assert _amount <= self.deposits[_uuid][msg.sender]
 
     # Update the deposits amount
-    self.deposits[_requestId][msg.sender] = self.deposits[_requestId][msg.sender] - _amount
+    self.deposits[_uuid][msg.sender] = self.deposits[_uuid][msg.sender] - _amount
 
     # Update the research request paid out amount
-    self.requests[_requestId].payout = self.requests[_requestId].payout + _amount
+    self.requests[_uuid].payout = self.requests[_uuid].payout + _amount
 
     # Update the research request completed flag
-    self.requests[_requestId].isCompleted = True
+    self.requests[_uuid].isCompleted = True
 
     # Send the amount to the receiver address
     send(_receiver, _amount)
 
     # Event
-    log.Withdrawn(msg.sender, self.requests[_requestId].deposit)
+    log.Distributed(_uuid, _receiver, self.requests[_uuid].deposit)
 
 @public
 @payable
-def refund(_requestId: uint256):
+def refund(_uuid: bytes32):
     # Guard 1: whether the address is not sender address
-    assert msg.sender == self.requests[_requestId].owner
+    assert msg.sender == self.requests[_uuid].owner
 
     # Guard 2: whether the current timestamp has gone over the submission end at
-    assert self.requests[_requestId].refundableAt <= block.timestamp
+    assert self.requests[_uuid].refundableAt <= block.timestamp
  
     # Culculate remain wei_value
-    amount: wei_value = self.requests[_requestId].deposit - self.requests[_requestId].payout
+    amount: wei_value = self.requests[_uuid].deposit - self.requests[_uuid].payout
 
     # Update the deposits amount
-    self.deposits[_requestId][msg.sender] = self.deposits[_requestId][msg.sender] - amount
+    self.deposits[_uuid][msg.sender] = self.deposits[_uuid][msg.sender] - amount
 
     # Update the research request payout
-    self.requests[_requestId].payout = self.requests[_requestId].payout + amount
+    self.requests[_uuid].payout = self.requests[_uuid].payout + amount
 
     # Update the research request completed flag
-    self.requests[_requestId].isCompleted = True
+    self.requests[_uuid].isCompleted = True
 
     # Send the amount to the receiver address
     send(msg.sender, amount)
 
     # Event
-    log.Withdrawn(msg.sender, amount)
+    log.Refunded(_uuid, msg.sender, amount)
 
 #
 # OwnerOnly Functions
