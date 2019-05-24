@@ -19,9 +19,10 @@ struct ResearchRequest:
     submissionEndAt: timestamp
     distributionAt: timestamp
     refundableAt: timestamp
-    reports: bytes32[8]
-    reporters: address[8]
-    reporterRewards: wei_value[8]
+    reports: bytes32[16]
+    reporters: address[16]
+    reporterApprovements: bool[16]
+    reporterRewards: wei_value[16]
     reportersCount: int128
     isCompleted: bool
 
@@ -120,9 +121,10 @@ def createResearchRequest(_uuid: bytes32, _applicationEndAt: timestamp, _submiss
         submissionEndAt: _submissionEndAt,
         distributionAt: _submissionEndAt + self.distributionEndTimespan,
         refundableAt: _submissionEndAt + self.refundableTimespan,
-        reports: [EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32],
-        reporters: [ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS],
-        reporterRewards: [0, 0, 0, 0, 0, 0, 0, 0],
+        reports: [EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32],
+        reporters: [ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS],
+        reporterApprovements: [False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False],
+        reporterRewards: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         reportersCount: 0,
         isCompleted: False })
 
@@ -141,8 +143,7 @@ def createResearchRequest(_uuid: bytes32, _applicationEndAt: timestamp, _submiss
         self.requests[_uuid].refundableAt)
 
 @public
-@payable
-def applicateResearchReport(_uuid: bytes32):
+def applyResearchReport(_uuid: bytes32):
     # Guard 1: whether the timestamps are correctly
     assert block.timestamp < self.requests[_uuid].applicationEndAt
 
@@ -167,11 +168,13 @@ def applicateResearchReport(_uuid: bytes32):
     # Add reporter
     self.requests[_uuid].reporters[self.requests[_uuid].reportersCount] = msg.sender
 
+    # Increment reportersCount
+    self.requests[_uuid].reportersCount = self.requests[_uuid].reportersCount + 1
+
     # Event
     log.Applied(_uuid, msg.sender)
 
 @public
-@payable
 def submitResearchReport(_uuid: bytes32, _ipfsHash: bytes32):
     # Guard 1: whether the timestamps are correctly
     assert self.requests[_uuid].applicationEndAt < block.timestamp and block.timestamp < self.requests[_uuid].submissionEndAt
