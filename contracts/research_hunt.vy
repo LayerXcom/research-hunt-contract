@@ -35,6 +35,7 @@ Deposited: event({uuid: indexed(bytes32), payer: indexed(address), weiAmount: we
 Distributed: event({uuid: indexed(bytes32), payee: indexed(address), weiAmount: wei_value})
 Refunded: event({uuid: indexed(bytes32), payee: indexed(address), weiAmount: wei_value})
 Applied: event({uuid: indexed(bytes32), applicant: indexed(address)})
+Approved: event({uuid: indexed(bytes32), applicant: indexed(address)})
 Submitted: event({uuid: indexed(bytes32), applicant: indexed(address), ipfsHash: bytes32})
 OwnerTransferred: event({transfer: address})
 ApplicationMinimumTimespanChanged: event({applicationMinimumTimespan: timedelta})
@@ -81,16 +82,20 @@ def __init__():
     self.owner = msg.sender
 
     # Application Minimum Timespan is 1 day
-    self.applicationMinimumTimespan = 1 * 24 * 60 * 60
+    self.applicationMinimumTimespan = 1 * 60
+    # self.applicationMinimumTimespan = 1 * 24 * 60 * 60
 
     # Submission Minimum Timespan is 1 day
-    self.submissionMinimumTimespan = 1 * 24 * 60 * 60
+    self.submissionMinimumTimespan = 1 * 60
+    # self.submissionMinimumTimespan = 1 * 24 * 60 * 60
 
     # DistributionTimespan is 3 Days
-    self.distributionEndTimespan = 3 * 24 * 60 * 60
+    self.distributionEndTimespan = 5 * 60
+    # self.distributionEndTimespan = 3 * 24 * 60 * 60
 
     # RefundableTimespan is 14 Days
-    self.refundableTimespan = 14 * 24 * 60 * 60
+    self.refundableTimespan = 1 * 60
+    # self.refundableTimespan = 14 * 24 * 60 * 60
 
 #
 # Research Hunt Functions
@@ -147,10 +152,10 @@ def applyResearchReport(_uuid: bytes32):
     # Guard 1: whether the timestamps are correctly
     assert block.timestamp < self.requests[_uuid].applicationEndAt
 
-    # Guard 2: whether the request ID has already created
+    # Guard 2: whether the request ID has not already created
     assert not self.requests[_uuid].owner == ZERO_ADDRESS
 
-    # Guard 3: whether the request owner is the sender
+    # Guard 3: whether the request owner is not the sender
     assert not self.requests[_uuid].owner == msg.sender 
 
     # Sender including flag
@@ -175,12 +180,36 @@ def applyResearchReport(_uuid: bytes32):
     log.Applied(_uuid, msg.sender)
 
 @public
+def approveResearchReport(_uuid: bytes32, _reporter: address):
+    # Guard 1: whether the timestamps are correctly
+    assert block.timestamp < self.requests[_uuid].submissionEndAt
+
+    # Guard 2: whether the request owner is the sender
+    assert self.requests[_uuid].owner == msg.sender 
+
+    # Approvement Flag
+    hasApproved: bool = False
+
+    # Get sender index
+    for index in range(16):
+        if self.requests[_uuid].reporters[index] == _reporter:
+            self.requests[_uuid].reporterApprovements[index] = True
+            hasApproved = True
+            break
+
+    # Guard 4: whether the sender has been approved
+    assert hasApproved
+
+    # Event
+    log.Approved(_uuid, _reporter)
+
+@public
 def submitResearchReport(_uuid: bytes32, _ipfsHash: bytes32):
     # Guard 1: whether the timestamps are correctly
     assert self.requests[_uuid].applicationEndAt < block.timestamp and block.timestamp < self.requests[_uuid].submissionEndAt
 
     # Sender including flag
-    hasApplied: bool = False
+    hasSubmitted: bool = False
 
     # Sender index
     senderIndex: int128 = 0
@@ -189,11 +218,11 @@ def submitResearchReport(_uuid: bytes32, _ipfsHash: bytes32):
     for index in range(16):
         if self.requests[_uuid].reporters[index] == msg.sender:
             senderIndex = index
-            hasApplied = True
+            hasSubmitted = True
             break
     
-    # Guard 2: Sender has applicated
-    assert hasApplied
+    # Guard 2: Sender has submitted
+    assert hasSubmitted 
 
     # Add reporter
     self.requests[_uuid].reports[senderIndex] = _ipfsHash
