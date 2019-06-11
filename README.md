@@ -8,7 +8,7 @@
 Create a virtual environment and install Vyper according to [Vyper documentation](https://vyper.readthedocs.io/en/v0.1.0-beta.8/installing-vyper.html)
 
 ### 2. Start up a local developmenet ethereum node.
-Start up Ganache with 8545 port.
+Start up Ganache with 9545 port and import private keys to MetaMask.
 
 ```
 truffle develop
