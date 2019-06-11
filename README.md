@@ -11,21 +11,21 @@ Create a virtual environment and install Vyper according to [Vyper documentation
 Start up Ganache with 9545 port and import private keys to MetaMask.
 
 ```
-truffle develop
+$ truffle develop
 ```
 
-
-### 3. Compile
-
-Compile contracts with
+### 3. Compile and Deploy
 
 ```
-truffle compile
+truffle(develop)> migrate
 ```
 
-### 4. Deploy
+or 
 
-Deploy contracts with 
 ```
-truffle deploy
+truffle(develop)> compile
+```
+
+```
+truffle(develop)> deploy
 ```
