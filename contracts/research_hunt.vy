@@ -13,6 +13,7 @@ struct ResearchRequest:
     owner: address
     uuid: bytes32
     deposit: wei_value
+    minimumReward: wei_value
     payout: wei_value
     createdAt: timestamp
     applicationEndAt: timestamp
@@ -30,8 +31,9 @@ struct ResearchRequest:
 # Events
 #
 # RequestCreated: event({uuid: indexed(bytes32), owner: indexed(address), weiAmount: wei_value, createdAt: timestamp, applicationEndAt: timestamp, submissionEndAt: timestamp, distributionAt: timestamp, refundableAt: timestamp})
-RequestCreated: event({uuid: bytes32, owner: address, deposit: wei_value, createdAt: timestamp, applicationEndAt: timestamp, submissionEndAt: timestamp, distributionAt: timestamp, refundableAt: timestamp})
+RequestCreated: event({uuid: bytes32, owner: address, deposit: wei_value, minimumReward: wei_value, createdAt: timestamp, applicationEndAt: timestamp, submissionEndAt: timestamp, distributionAt: timestamp, refundableAt: timestamp})
 Deposited: event({uuid: indexed(bytes32), payer: indexed(address), weiAmount: wei_value})
+AddedMinimumRewardToRequest: event({uuid: indexed(bytes32), payer: indexed(address), weiAmount: wei_value})
 Distributed: event({uuid: indexed(bytes32), payee: indexed(address), weiAmount: wei_value})
 Refunded: event({uuid: indexed(bytes32), payee: indexed(address), weiAmount: wei_value})
 Applied: event({uuid: indexed(bytes32), applicant: indexed(address)})
@@ -102,7 +104,7 @@ def __init__():
 #
 @public
 @payable
-def createResearchRequest(_uuid: bytes32, _applicationEndAt: timestamp, _submissionEndAt: timestamp):
+def createResearchRequest(_uuid: bytes32, _applicationEndAt: timestamp, _submissionEndAt: timestamp, _minimumReward: wei_value):
     # Guard 1: whether the deposit amount is greater than 0 wei
     assert msg.value > 0
 
@@ -115,11 +117,18 @@ def createResearchRequest(_uuid: bytes32, _applicationEndAt: timestamp, _submiss
     # Guard 4: whether the request ID has already created
     assert self.requests[_uuid].owner == ZERO_ADDRESS
 
+    # Guard 5: whether the minimumReward amount is over 0 wei
+    assert _minimumReward >= 0
+
+    # Guard 6: whether the minimumReward amount is less than deposit amount
+    assert _minimumReward < msg.value
+
     # Create research request
     self.requests[_uuid] = ResearchRequest({
         owner: msg.sender,
         uuid: _uuid,
         deposit: msg.value,
+        minimumReward: _minimumReward,
         payout: 0,
         createdAt: block.timestamp,
         applicationEndAt: _applicationEndAt,
@@ -141,6 +150,7 @@ def createResearchRequest(_uuid: bytes32, _applicationEndAt: timestamp, _submiss
         self.requests[_uuid].uuid,
         self.requests[_uuid].owner,
         self.requests[_uuid].deposit,
+        self.requests[_uuid].minimumReward,
         self.requests[_uuid].createdAt,
         self.requests[_uuid].applicationEndAt,
         self.requests[_uuid].submissionEndAt,
@@ -247,6 +257,24 @@ def addDepositToRequest(_uuid: bytes32):
 
     # Event
     log.Deposited(_uuid, msg.sender, self.requests[_uuid].deposit)
+
+@public
+@payable
+def addMinimumRewardToRequest(_uuid: bytes32, _minimumRewardAddition: wei_value):
+    # Guard 1: whether the minimumRewardAddition amount is greater than 0 wei
+    assert _minimumRewardAddition > 0
+
+    # Guard 2: whether the updated minimumReward amount is less than deposit amount
+    assert self.requests[_uuid].minimumReward + _minimumRewardAddition < self.requests[_uuid].deposit
+
+    # Guard 3: whether the request ID is same as sender address
+    assert self.requests[_uuid].owner == msg.sender
+
+    # Update the research request deposited amount
+    self.requests[_uuid].minimumReward = self.requests[_uuid].minimumReward + _minimumRewardAddition
+
+    # Event
+    log.AddedMinimumRewardToRequest(_uuid, msg.sender, self.requests[_uuid].minimumReward)
 
 @public
 @payable
