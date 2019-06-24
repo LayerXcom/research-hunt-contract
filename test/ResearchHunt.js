@@ -1,18 +1,17 @@
 const ResearchHunt = artifacts.require("research_hunt");
-
 const moment = require('moment');
-
 const testrpc = require('./helpers/testrpc');
-
 const truffleAssert = require('truffle-assertions');
-
 const { expectThrow } = require('./helpers/expectThrow');
 
-contract("ResearchHunt", ([account, payee]) => {
+contract("ResearchHunt", ([account, reporter1, reporter2, reporter3]) => {
   // eth amount for test
   const amount = 10000;
-
-  const uuid = "0x1111111111111111111111111111111111111111111111111111111111111111"
+  const uuid = "0x9999999999999999999999999999999999999999999999999999999999999999"
+  const minimumReward = 10
+  const reportHash1 = '0x1111111111111111111111111111111111111111111111111111111111111111'
+  const reportHash2 = '0x2222222222222222222222222222222222222222222222222222222222222222'
+  const reportHash3 = '0x3333333333333333333333333333333333333333333333333333333333333333'
 
   // snapshot
   let snapshotId;
@@ -34,10 +33,11 @@ contract("ResearchHunt", ([account, payee]) => {
     const result = await researchHunt.createResearchRequest(uuid,
       moment().add(2, 'days').unix(),
       moment().add(4, 'days').unix(),
+      minimumReward,
       { from: account, value: amount });
 
     truffleAssert.eventEmitted(result, 'RequestCreated', (ev) => {
-      return ev.owner == account && ev.weiAmount == amount
+      return ev.owner == account && ev.deposit == amount && ev.minimumReward == minimumReward
     }, 'RequestCreated event should be emitted.');
   });
 
@@ -47,15 +47,17 @@ contract("ResearchHunt", ([account, payee]) => {
     const result = await researchHunt.createResearchRequest(uuid,
       moment().add(2, 'days').unix(),
       moment().add(4, 'days').unix(),
+      minimumReward,
       { from: account, value: amount });
 
     truffleAssert.eventEmitted(result, 'RequestCreated', (ev) => {
-      return ev.owner == account && ev.weiAmount == amount
+      return ev.owner == account && ev.deposit == amount && ev.minimumReward == minimumReward
     }, 'RequestCreated event should be emitted.');
 
     await expectThrow(researchHunt.createResearchRequest(uuid,
       moment().add(2, 'days').unix(),
       moment().add(4, 'days').unix(),
+      minimumReward,
       { from: account, value: amount }));
   });
 
@@ -65,6 +67,7 @@ contract("ResearchHunt", ([account, payee]) => {
     await expectThrow(researchHunt.createResearchRequest(uuid,
       moment().add(2, 'days').unix(),
       moment().add(4, 'days').unix(),
+      minimumReward,
       { from: account, value: 0 }));
   });
 
@@ -74,6 +77,7 @@ contract("ResearchHunt", ([account, payee]) => {
     await expectThrow(researchHunt.createResearchRequest(uuid,
       moment().add(4, 'days').unix(),
       moment().add(2, 'days').unix(),
+      minimumReward,
       { from: account, value: amount }));
   });
 
@@ -83,6 +87,7 @@ contract("ResearchHunt", ([account, payee]) => {
     await expectThrow(researchHunt.createResearchRequest(uuid,
       moment().subtract(2, 'days').unix(),
       moment().subtract(4, 'days').unix(),
+      minimumReward,
       { from: account, value: amount }));
   });
 
@@ -131,13 +136,14 @@ contract("ResearchHunt", ([account, payee]) => {
     const result = await researchHunt.createResearchRequest(uuid,
       moment().add(2, 'days').unix(),
       moment().add(4, 'days').unix(),
+      minimumReward,
       { from: account, value: amount });
 
     await testrpc.advanceTime(18 * 24 * 60 * 60);
 
     const resultRefund = await researchHunt.refund(uuid, { from: account });
 
-    truffleAssert.eventEmitted(resultRefund, 'Withdrawn', (ev) => {
+    truffleAssert.eventEmitted(resultRefund, 'Refunded', (ev) => {
       return ev.weiAmount == amount
     }, 'Withdrawn event should be emitted.');
   });
@@ -148,6 +154,7 @@ contract("ResearchHunt", ([account, payee]) => {
     await researchHunt.createResearchRequest(uuid,
       moment().add(2, 'days').unix(),
       moment().add(4, 'days').unix(),
+      minimumReward,
       { from: account, value: amount });
 
     await testrpc.advanceTime(18 * 24 * 60 * 60 - 1);
@@ -161,28 +168,36 @@ contract("ResearchHunt", ([account, payee]) => {
     await researchHunt.createResearchRequest(uuid,
       moment().add(2, 'days').unix(),
       moment().add(4, 'days').unix(),
+      minimumReward,
       { from: account, value: amount });
 
-    await testrpc.advanceTime(4 * 24 * 60 * 60 + 1);
+    const resultApplied = await researchHunt.applyResearchReport(uuid, { from: reporter1 });
 
-    const resultDistribute = await researchHunt.distribute(uuid, payee, amount, { from: account });
+    truffleAssert.eventEmitted(resultApplied, 'Applied', (ev) => {
+      return ev.uuid == uuid && ev.applicant == reporter1
+    }, 'Applied event should be emitted.');
 
-    truffleAssert.eventEmitted(resultDistribute, 'Withdrawn', (ev) => {
-      return ev.weiAmount == amount
-    }, 'Withdrawn event should be emitted.');
-  });
+    const resultApproved = await researchHunt.approveResearchReport(uuid, reporter1, { from: account });
 
-  it("should not be distributed with incorrect distribution timespan", async () => {
-    const researchHunt = await ResearchHunt.deployed();
+    truffleAssert.eventEmitted(resultApproved, 'Approved', (ev) => {
+      return ev.uuid == uuid && ev.applicant == reporter1
+    }, 'Approved event should be emitted.');
 
-    await researchHunt.createResearchRequest(uuid,
-      moment().add(2, 'days').unix(),
-      moment().add(4, 'days').unix(),
-      { from: account, value: amount });
+    await testrpc.advanceTime(1 * 24 * 60 * 60 + 1);
 
-    await testrpc.advanceTime(4 * 24 * 60 * 60 );
+    const resultSubmitted = await researchHunt.submitResearchReport(uuid, reportHash1, { from: reporter1 });
 
-    await expectThrow(researchHunt.distribute(uuid, payee, amount, { from: account }));
+    truffleAssert.eventEmitted(resultSubmitted, 'Submitted', (ev) => {
+      return ev.uuid == uuid && ev.applicant == reporter1 && ev.ipfsHash == reportHash1
+    }, 'Submitted event should be emitted.');
+
+    await testrpc.advanceTime(1 * 24 * 60 * 60 + 1);
+
+    const resultDistribute = await researchHunt.distribute(uuid, [amount, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], { from: account });
+
+    truffleAssert.eventEmitted(resultDistribute, 'Distributed', (ev) => {
+      return ev.payees[0] == reporter1 && ev.weiAmounts[0] == amount
+    }, 'Distributed event should be emitted.');
   });
 
   it("should not be distributed with incorrect amount", async () => {
@@ -191,10 +206,31 @@ contract("ResearchHunt", ([account, payee]) => {
     await researchHunt.createResearchRequest(uuid,
       moment().add(2, 'days').unix(),
       moment().add(4, 'days').unix(),
+      minimumReward,
       { from: account, value: amount });
 
-    await testrpc.advanceTime(4 * 24 * 60 * 60 + 1);
+    const resultApplied = await researchHunt.applyResearchReport(uuid, { from: reporter1 });
 
-    await expectThrow(researchHunt.distribute(uuid, payee, amount + 1, { from: account }));
+    truffleAssert.eventEmitted(resultApplied, 'Applied', (ev) => {
+      return ev.uuid == uuid && ev.applicant == reporter1
+    }, 'Applied event should be emitted.');
+
+    const resultApproved = await researchHunt.approveResearchReport(uuid, reporter1, { from: account });
+
+    truffleAssert.eventEmitted(resultApproved, 'Approved', (ev) => {
+      return ev.uuid == uuid && ev.applicant == reporter1
+    }, 'Approved event should be emitted.');
+
+    await testrpc.advanceTime(1 * 24 * 60 * 60 + 1);
+
+    const resultSubmitted = await researchHunt.submitResearchReport(uuid, reportHash1, { from: reporter1 });
+
+    truffleAssert.eventEmitted(resultSubmitted, 'Submitted', (ev) => {
+      return ev.uuid == uuid && ev.applicant == reporter1 && ev.ipfsHash == reportHash1
+    }, 'Submitted event should be emitted.');
+
+    await testrpc.advanceTime(1 * 24 * 60 * 60 + 1);
+
+    await expectThrow(researchHunt.distribute(uuid, [amount + 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], { from: account }));
   });
 });

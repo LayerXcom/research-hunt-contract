@@ -34,7 +34,7 @@ struct ResearchRequest:
 RequestCreated: event({uuid: bytes32, owner: address, deposit: wei_value, minimumReward: wei_value, createdAt: timestamp, applicationEndAt: timestamp, submissionEndAt: timestamp, distributionAt: timestamp, refundableAt: timestamp})
 Deposited: event({uuid: indexed(bytes32), payer: indexed(address), weiAmount: wei_value})
 AddedMinimumRewardToRequest: event({uuid: indexed(bytes32), payer: indexed(address), weiAmount: wei_value})
-Distributed: event({uuid: indexed(bytes32), payee: indexed(address), weiAmount: wei_value})
+Distributed: event({uuid: indexed(bytes32), payees: address[16], weiAmounts: wei_value[16]})
 Refunded: event({uuid: indexed(bytes32), payee: indexed(address), weiAmount: wei_value})
 Applied: event({uuid: indexed(bytes32), applicant: indexed(address)})
 Approved: event({uuid: indexed(bytes32), applicant: indexed(address)})
@@ -84,20 +84,20 @@ def __init__():
     self.owner = msg.sender
 
     # Application Minimum Timespan is 1 day
-    self.applicationMinimumTimespan = 1 * 60
-    # self.applicationMinimumTimespan = 1 * 24 * 60 * 60
+    # self.applicationMinimumTimespan = 1 * 60
+    self.applicationMinimumTimespan = 1 * 24 * 60 * 60
 
     # Submission Minimum Timespan is 1 day
-    self.submissionMinimumTimespan = 1 * 60
-    # self.submissionMinimumTimespan = 1 * 24 * 60 * 60
+    # self.submissionMinimumTimespan = 1 * 60
+    self.submissionMinimumTimespan = 1 * 24 * 60 * 60
 
     # DistributionTimespan is 3 Days
-    self.distributionEndTimespan = 5 * 60
-    # self.distributionEndTimespan = 3 * 24 * 60 * 60
+    # self.distributionEndTimespan = 5 * 60
+    self.distributionEndTimespan = 3 * 24 * 60 * 60
 
     # RefundableTimespan is 14 Days
-    self.refundableTimespan = 1 * 60
-    # self.refundableTimespan = 14 * 24 * 60 * 60
+    # self.refundableTimespan = 1 * 60
+    self.refundableTimespan = 14 * 24 * 60 * 60
 
 #
 # Research Hunt Functions
@@ -216,7 +216,7 @@ def approveResearchReport(_uuid: bytes32, _reporter: address):
 @public
 def submitResearchReport(_uuid: bytes32, _ipfsHash: bytes32):
     # Guard 1: whether the timestamps are correctly
-    assert self.requests[_uuid].applicationEndAt < block.timestamp and block.timestamp < self.requests[_uuid].submissionEndAt
+    assert block.timestamp < self.requests[_uuid].submissionEndAt
 
     # Sender including flag
     hasSubmitted: bool = False
@@ -276,41 +276,52 @@ def addMinimumRewardToRequest(_uuid: bytes32, _minimumRewardAddition: wei_value)
     # Event
     log.AddedMinimumRewardToRequest(_uuid, msg.sender, self.requests[_uuid].minimumReward)
 
+
 @public
 @payable
-def distribute(_uuid: bytes32, _receiver: address, _amount: wei_value):
-    # Guard 1: whether the distributing amount is greater than 0 wei
-    assert _amount > 0
-
-    # Guard 2: whether the address is not sender address
-    assert not msg.sender == _receiver
-
-    # Guard 3: whether the current timestamp has gone over the submission end at
-    assert block.timestamp > self.requests[_uuid].submissionEndAt
-
-    # Guard 4: whether the request ID is same as sender address
+def distribute(_uuid: bytes32, _amounts: wei_value[16]):
+    # Guard 1: whether the request ID is same as sender address
     assert self.requests[_uuid].owner == msg.sender
 
-    # Guard 5: whether the deposited amount is greater than or equal the distributed
-    assert _amount <= self.requests[_uuid].deposit - self.requests[_uuid].payout
+    # Total amounts of arguments
+    total: wei_value
 
-    # Guard 6: whether the total deposited amount is greater than or equal the distributed
-    assert _amount <= self.deposits[_uuid][msg.sender]
+    # Verifications
+    for index in range(16):
+        if self.requests[_uuid].reports[index] == EMPTY_BYTES32:
+            continue
 
-    # Update the deposits amount
-    self.deposits[_uuid][msg.sender] = self.deposits[_uuid][msg.sender] - _amount
+        # Check the sender, approvement and submission
+        if _amounts[index] > 0:
+            # Guard 3: whether the reporter is not owner
+            assert not self.requests[_uuid].reporters[index] == msg.sender
+            # Guard 4: whether the reporter has been approved
+            assert self.requests[_uuid].reporterApprovements[index]
+            # Guard 5: whether the report has been submitted
+            assert not self.requests[_uuid].reports[index] == EMPTY_BYTES32
 
-    # Update the research request paid out amount
-    self.requests[_uuid].payout = self.requests[_uuid].payout + _amount
+        # Add the amount to total value
+        total = total + _amounts[index]
 
-    # Update the research request completed flag
-    self.requests[_uuid].isCompleted = True
+    # Guard 6: whether the total deposition is same as arguments
+    assert self.requests[_uuid].deposit == total
 
     # Send the amount to the receiver address
-    send(_receiver, _amount)
+    for index in range(16):
+        if self.requests[_uuid].reports[index] == EMPTY_BYTES32:
+            continue
 
-    # Event
-    log.Distributed(_uuid, _receiver, self.requests[_uuid].deposit)
+        # only if do not send the reward to reports yet
+        if self.requests[_uuid].reporterRewards[index] == 0:
+            self.requests[_uuid].reporterRewards[index] = _amounts[index]
+            send(self.requests[_uuid].reporters[index], _amounts[index])
+
+    # For bug
+    reporters: address[16] = self.requests[_uuid].reporters
+    rewards: wei_value[16] = self.requests[_uuid].reporterRewards
+
+    # Events
+    log.Distributed(_uuid, reporters, rewards)
 
 @public
 @payable
