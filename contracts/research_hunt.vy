@@ -307,7 +307,7 @@ def distribute(_uuid: bytes32, _amounts: wei_value[16]):
 
         # Add the amount to total value
         total = total + _amounts[index]
-    
+
     # Calculate minimum reward per reporter
     minimumRewardPerReporter: wei_value = self.requests[_uuid].minimumReward / totalReportersCount
 

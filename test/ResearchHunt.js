@@ -207,7 +207,7 @@ contract("ResearchHunt", ([account, reporter1, reporter2, reporter3]) => {
       moment().add(2, 'days').unix(),
       moment().add(4, 'days').unix(),
       minimumReward,
-      { from: account, value: amount });
+      { from: account, value: "1000000000000000000" });
 
     const resultApplied = await researchHunt.applyResearchReport(uuid, { from: reporter1 });
 
@@ -249,10 +249,10 @@ contract("ResearchHunt", ([account, reporter1, reporter2, reporter3]) => {
 
     await testrpc.advanceTime(1 * 24 * 60 * 60 + 1);
 
-    const resultDistribute = await researchHunt.distribute(uuid, [9900, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], { from: account });
+    const resultDistribute = await researchHunt.distribute(uuid, ["999999999999999900", "21", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], { from: account });
 
     truffleAssert.eventEmitted(resultDistribute, 'Distributed', (ev) => {
-      return ev.payees[0] == reporter1 && ev.weiAmounts[0] == 9939 && ev.weiAmounts[1] == 60
+      return ev.payees[0] == reporter1 && ev.weiAmounts[0] == "999999999999999939" && ev.weiAmounts[1] == "60"
     }, 'Distributed event should be emitted.');
   });
 
