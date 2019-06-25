@@ -286,10 +286,15 @@ def distribute(_uuid: bytes32, _amounts: wei_value[16]):
     # Total amounts of arguments
     total: wei_value
 
+    # Total reward counts
+    totalReportersCount: uint256
+
     # Verifications
     for index in range(16):
         if self.requests[_uuid].reports[index] == EMPTY_BYTES32:
             continue
+        
+        totalReportersCount = totalReportersCount + 1
 
         # Check the sender, approvement and submission
         if _amounts[index] > 0:
@@ -302,9 +307,12 @@ def distribute(_uuid: bytes32, _amounts: wei_value[16]):
 
         # Add the amount to total value
         total = total + _amounts[index]
+    
+    # Calculate minimum reward per reporter
+    minimumRewardPerReporter: wei_value = self.requests[_uuid].minimumReward / totalReportersCount
 
     # Guard 6: whether the total deposition is same as arguments
-    assert self.requests[_uuid].deposit == total
+    assert self.requests[_uuid].deposit == total + self.requests[_uuid].minimumReward
 
     # Send the amount to the receiver address
     for index in range(16):
@@ -313,8 +321,8 @@ def distribute(_uuid: bytes32, _amounts: wei_value[16]):
 
         # only if do not send the reward to reports yet
         if self.requests[_uuid].reporterRewards[index] == 0:
-            self.requests[_uuid].reporterRewards[index] = _amounts[index]
-            send(self.requests[_uuid].reporters[index], _amounts[index])
+            self.requests[_uuid].reporterRewards[index] = _amounts[index] + minimumRewardPerReporter
+            send(self.requests[_uuid].reporters[index], self.requests[_uuid].reporterRewards[index])
 
     # For bug
     reporters: address[16] = self.requests[_uuid].reporters
