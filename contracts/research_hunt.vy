@@ -84,20 +84,20 @@ def __init__():
     self.owner = msg.sender
 
     # Application Minimum Timespan is 1 day
-    # self.applicationMinimumTimespan = 1 * 60
-    self.applicationMinimumTimespan = 1 * 24 * 60 * 60
+    self.applicationMinimumTimespan = 1 * 60
+    # self.applicationMinimumTimespan = 1 * 24 * 60 * 60
 
     # Submission Minimum Timespan is 1 day
-    # self.submissionMinimumTimespan = 1 * 60
-    self.submissionMinimumTimespan = 1 * 24 * 60 * 60
+    self.submissionMinimumTimespan = 1 * 60
+    # self.submissionMinimumTimespan = 1 * 24 * 60 * 60
 
     # DistributionTimespan is 3 Days
-    # self.distributionEndTimespan = 5 * 60
-    self.distributionEndTimespan = 3 * 24 * 60 * 60
+    self.distributionEndTimespan = 5 * 60
+    # self.distributionEndTimespan = 3 * 24 * 60 * 60
 
     # RefundableTimespan is 14 Days
-    # self.refundableTimespan = 1 * 60
-    self.refundableTimespan = 14 * 24 * 60 * 60
+    self.refundableTimespan = 1 * 60
+    # self.refundableTimespan = 14 * 24 * 60 * 60
 
 #
 # Research Hunt Functions
