@@ -159,13 +159,16 @@ def createResearchRequest(_uuid: bytes32, _applicationEndAt: timestamp, _submiss
 
 @public
 def applyResearchReport(_uuid: bytes32):
-    # Guard 1: whether the timestamps are correctly
+    # Guard 1: whether this request has been completed
+    assert self.requests[_uuid].isCompleted == False
+
+    # Guard 2: whether the timestamps are correctly
     assert block.timestamp < self.requests[_uuid].applicationEndAt
 
-    # Guard 2: whether the request ID has not already created
+    # Guard 3: whether the request ID has not already created
     assert not self.requests[_uuid].owner == ZERO_ADDRESS
 
-    # Guard 3: whether the request owner is not the sender
+    # Guard 4: whether the request owner is not the sender
     assert not self.requests[_uuid].owner == msg.sender 
 
     # Sender including flag
@@ -191,10 +194,13 @@ def applyResearchReport(_uuid: bytes32):
 
 @public
 def approveResearchReport(_uuid: bytes32, _reporter: address):
-    # Guard 1: whether the timestamps are correctly
+    # Guard 1: whether this request has been completed
+    assert self.requests[_uuid].isCompleted == False
+
+    # Guard 2: whether the timestamps are correctly
     assert block.timestamp < self.requests[_uuid].submissionEndAt
 
-    # Guard 2: whether the request owner is the sender
+    # Guard 3: whether the request owner is the sender
     assert self.requests[_uuid].owner == msg.sender 
 
     # Approvement Flag
@@ -215,7 +221,10 @@ def approveResearchReport(_uuid: bytes32, _reporter: address):
 
 @public
 def submitResearchReport(_uuid: bytes32, _ipfsHash: bytes32):
-    # Guard 1: whether the timestamps are correctly
+    # Guard 1: whether this request has been completed
+    assert self.requests[_uuid].isCompleted == False
+
+    # Guard 2: whether the timestamps are correctly
     assert block.timestamp < self.requests[_uuid].submissionEndAt
 
     # Sender including flag
@@ -231,7 +240,7 @@ def submitResearchReport(_uuid: bytes32, _ipfsHash: bytes32):
             hasSubmitted = True
             break
     
-    # Guard 2: Sender has submitted
+    # Guard 3: Sender has submitted
     assert hasSubmitted 
 
     # Add reporter
@@ -243,10 +252,13 @@ def submitResearchReport(_uuid: bytes32, _ipfsHash: bytes32):
 @public
 @payable
 def addDepositToRequest(_uuid: bytes32):
-    # Guard 1: whether the deposit amount is greater than 0 wei
+    # Guard 1: whether this request has been completed
+    assert self.requests[_uuid].isCompleted == False
+
+    # Guard 2: whether the deposit amount is greater than 0 wei
     assert msg.value > 0
 
-    # Guard 2: whether the request ID is same as sender address
+    # Guard 3: whether the request ID is same as sender address
     assert self.requests[_uuid].owner == msg.sender
 
     # Update the research request deposited amount
@@ -261,13 +273,16 @@ def addDepositToRequest(_uuid: bytes32):
 @public
 @payable
 def addMinimumRewardToRequest(_uuid: bytes32, _minimumRewardAddition: wei_value):
-    # Guard 1: whether the minimumRewardAddition amount is greater than 0 wei
+    # Guard 1: whether this request has been completed
+    assert self.requests[_uuid].isCompleted == False
+
+    # Guard 2: whether the minimumRewardAddition amount is greater than 0 wei
     assert _minimumRewardAddition > 0
 
-    # Guard 2: whether the updated minimumReward amount is less than deposit amount
+    # Guard 3: whether the updated minimumReward amount is less than deposit amount
     assert self.requests[_uuid].minimumReward + _minimumRewardAddition < self.requests[_uuid].deposit
 
-    # Guard 3: whether the request ID is same as sender address
+    # Guard 4: whether the request ID is same as sender address
     assert self.requests[_uuid].owner == msg.sender
 
     # Update the research request deposited amount
@@ -280,7 +295,10 @@ def addMinimumRewardToRequest(_uuid: bytes32, _minimumRewardAddition: wei_value)
 @public
 @payable
 def distribute(_uuid: bytes32, _amounts: wei_value[16]):
-    # Guard 1: whether the request ID is same as sender address
+    # Guard 1: whether this request has been completed
+    assert self.requests[_uuid].isCompleted == False
+
+    # Guard 2: whether the request ID is same as sender address
     assert self.requests[_uuid].owner == msg.sender
 
     # Total amounts of arguments
@@ -323,6 +341,9 @@ def distribute(_uuid: bytes32, _amounts: wei_value[16]):
         if self.requests[_uuid].reporterRewards[index] == 0:
             self.requests[_uuid].reporterRewards[index] = _amounts[index] + minimumRewardPerReporter
             send(self.requests[_uuid].reporters[index], self.requests[_uuid].reporterRewards[index])
+    
+    # Completion
+    self.requests[_uuid].isCompleted = True
 
     # For bug
     reporters: address[16] = self.requests[_uuid].reporters
