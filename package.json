@@ -1,0 +1,32 @@
+{
+  "name": "research-hunt-contract",
+  "version": "0.0.1",
+  "description": "> Research Hunt SmartContract Project with Truffle with Vyper",
+  "main": "truffle-config.js",
+  "directories": {
+    "test": "test"
+  },
+  "dependencies": {
+    "lodash": "^4.17.11",
+    "moment": "^2.24.0",
+    "truffle-assertions": "^0.8.2",
+    "truffle": "^5.0.24"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "truffle test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/LayerXcom/research-hunt-contract.git"
+  },
+  "keywords": [
+    "vyper"
+  ],
+  "author": "akinama",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/LayerXcom/research-hunt-contract/issues"
+  },
+  "homepage": "https://github.com/LayerXcom/research-hunt-contract#readme"
+}
