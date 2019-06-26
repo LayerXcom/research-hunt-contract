@@ -34,7 +34,8 @@ struct ResearchRequest:
 RequestCreated: event({uuid: bytes32, owner: address, deposit: wei_value, minimumReward: wei_value, createdAt: timestamp, applicationEndAt: timestamp, submissionEndAt: timestamp, distributionAt: timestamp, refundableAt: timestamp})
 Deposited: event({uuid: indexed(bytes32), payer: indexed(address), weiAmount: wei_value})
 AddedMinimumRewardToRequest: event({uuid: indexed(bytes32), payer: indexed(address), weiAmount: wei_value})
-Distributed: event({uuid: indexed(bytes32), payees: address[16], weiAmounts: wei_value[16]})
+# Distributed: event({uuid: indexed(bytes32), payees: address[16], weiAmounts: wei_value[16]})
+Distributed: event({uuid: indexed(bytes32)})
 Refunded: event({uuid: indexed(bytes32), payee: indexed(address), weiAmount: wei_value})
 Applied: event({uuid: indexed(bytes32), applicant: indexed(address)})
 Approved: event({uuid: indexed(bytes32), applicant: indexed(address)})
@@ -346,11 +347,12 @@ def distribute(_uuid: bytes32, _amounts: wei_value[16]):
     self.requests[_uuid].isCompleted = True
 
     # For bug
-    reporters: address[16] = self.requests[_uuid].reporters
-    rewards: wei_value[16] = self.requests[_uuid].reporterRewards
+    # reporters: address[16] = self.requests[_uuid].reporters
+    # rewards: wei_value[16] = self.requests[_uuid].reporterRewards
 
     # Events
-    log.Distributed(_uuid, reporters, rewards)
+    # log.Distributed(_uuid, reporters, rewards)
+    log.Distributed(_uuid)
 
 @public
 @payable
