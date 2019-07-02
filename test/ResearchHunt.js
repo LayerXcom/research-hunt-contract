@@ -291,4 +291,77 @@ contract("ResearchHunt", ([account, reporter1, reporter2, reporter3]) => {
 
     await expectThrow(researchHunt.distribute(uuid, [amount + 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], { from: account }));
   });
+
+  it("should be updated deposite with correct additional deposit amount", async () => {
+    const researchHunt = await ResearchHunt.deployed();
+    const depositAddition = 1000;
+
+    const result = await researchHunt.createResearchRequest(uuid,
+      moment().add(2, 'days').unix(),
+      moment().add(4, 'days').unix(),
+      minimumReward,
+      { from: account, value: amount });
+
+    const resultAddDeposit = await researchHunt.addDepositToRequest(uuid, { value: depositAddition });
+
+    truffleAssert.eventEmitted(resultAddDeposit, 'Deposited', (ev) => {
+      return ev.weiAmount == 11000 // amount + depositAddition
+    }, 'Deposited event should be emitted.');
+  });
+
+  it("should not be updated deposite with incorrect additional deposit amount", async () => {
+    const researchHunt = await ResearchHunt.deployed();
+    const depositAddition = -1000;
+
+    const result = await researchHunt.createResearchRequest(uuid,
+      moment().add(2, 'days').unix(),
+      moment().add(4, 'days').unix(),
+      minimumReward,
+      { from: account, value: amount });
+
+    expectThrow(await researchHunt.addDepositToRequest(uuid, { value: depositAddition }));
+  });
+
+  it("should be added minimum reward with correct additional minimum reward amount", async () => {
+    const researchHunt = await ResearchHunt.deployed();
+    const minimumRewardAddition = 1000;
+
+    const result = await researchHunt.createResearchRequest(uuid,
+      moment().add(2, 'days').unix(),
+      moment().add(4, 'days').unix(),
+      minimumReward,
+      { from: account, value: amount });
+
+    const resultAddMinimumReward = await researchHunt.addMinimumRewardToRequest(uuid, minimumRewardAddition);
+
+    truffleAssert.eventEmitted(resultAddMinimumReward, 'AddedMinimumRewardToRequest', (ev) => {
+      return ev.weiAmount == 1079 // minimumReward + minimumRewardAddition
+    }, 'resultAddMinimumReward event should be emitted.');
+  });
+
+  it("should be not added minimum reward with incorrect additional minimum reward amount", async () => {
+    const researchHunt = await ResearchHunt.deployed();
+    const minimumRewardAddition = -10;
+
+    const result = await researchHunt.createResearchRequest(uuid,
+      moment().add(2, 'days').unix(),
+      moment().add(4, 'days').unix(),
+      minimumReward,
+      { from: account, value: amount });
+
+    expectThrow(researchHunt.addMinimumRewardToRequest(uuid, minimumRewardAddition));
+  });
+
+  it("should be not added minimum reward with incorrect additional minimum reward amount that sum of the minimum reward amount is larger than the reward", async () => {
+    const researchHunt = await ResearchHunt.deployed();
+    const minimumRewardAddition = 10050;
+
+    const result = await researchHunt.createResearchRequest(uuid,
+      moment().add(2, 'days').unix(),
+      moment().add(4, 'days').unix(),
+      minimumReward,
+      { from: account, value: amount });
+
+    expectThrow(researchHunt.addMinimumRewardToRequest(uuid, minimumRewardAddition));
+  });
 });
