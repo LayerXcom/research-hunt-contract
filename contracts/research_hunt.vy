@@ -34,8 +34,8 @@ struct ResearchRequest:
 RequestCreated: event({uuid: bytes32, owner: address, deposit: wei_value, minimumReward: wei_value, createdAt: timestamp, applicationEndAt: timestamp, submissionEndAt: timestamp, distributionAt: timestamp, refundableAt: timestamp})
 Deposited: event({uuid: bytes32, payer: address, weiAmount: wei_value})
 AddedMinimumRewardToRequest: event({uuid: bytes32, payer: address, weiAmount: wei_value})
-# Distributed: event({uuid: bytes32, payees: address[16], weiAmounts: wei_value[16]})
-Distributed: event({uuid: bytes32})
+# Distributed: event({uuid: indexed(bytes32), payees: address[16], weiAmounts: wei_value[16]})
+Distributed: event({uuid: bytes32, payee: address, weiAmount: wei_value})
 Refunded: event({uuid: bytes32, payee: address, weiAmount: wei_value})
 Applied: event({uuid: bytes32, applicant: address})
 Approved: event({uuid: bytes32, applicant: address})
@@ -346,13 +346,19 @@ def distribute(_uuid: bytes32, _amounts: wei_value[16]):
     # Completion
     self.requests[_uuid].isCompleted = True
 
-    # For bug
-    # reporters: address[16] = self.requests[_uuid].reporters
-    # rewards: wei_value[16] = self.requests[_uuid].reporterRewards
+    reporters: address[16] = self.requests[_uuid].reporters
+    rewards: wei_value[16] = self.requests[_uuid].reporterRewards
 
-    # Events
+    for index in range(16):
+        if reporters[index] == ZERO_ADDRESS:
+            continue
+        reporter: address = reporters[index]
+        reward: wei_value = rewards[index]
+        # Events
+        log.Distributed(_uuid, reporter, reward)
+
+    # For Bugs
     # log.Distributed(_uuid, reporters, rewards)
-    log.Distributed(_uuid)
 
 @public
 @payable
