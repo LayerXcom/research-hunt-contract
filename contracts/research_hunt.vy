@@ -18,8 +18,6 @@ struct ResearchRequest:
     createdAt: timestamp
     applicationEndAt: timestamp
     submissionEndAt: timestamp
-    distributionAt: timestamp
-    refundableAt: timestamp
     reports: bytes32[16]
     reporters: address[16]
     reporterApprovements: bool[16]
@@ -30,27 +28,18 @@ struct ResearchRequest:
 #
 # Events
 #
-# RequestCreated: event({uuid: bytes32, owner: address, weiAmount: wei_value, createdAt: timestamp, applicationEndAt: timestamp, submissionEndAt: timestamp, distributionAt: timestamp, refundableAt: timestamp})
-RequestCreated: event({uuid: bytes32, owner: address, deposit: wei_value, minimumReward: wei_value, createdAt: timestamp, applicationEndAt: timestamp, submissionEndAt: timestamp, distributionAt: timestamp, refundableAt: timestamp})
+RequestCreated: event({uuid: bytes32, owner: address, deposit: wei_value, minimumReward: wei_value, createdAt: timestamp, applicationEndAt: timestamp, submissionEndAt: timestamp})
 Deposited: event({uuid: bytes32, payer: address, weiAmount: wei_value})
 AddedMinimumRewardToRequest: event({uuid: bytes32, payer: address, weiAmount: wei_value})
+# For Bugs
 # Distributed: event({uuid: indexed(bytes32), payees: address[16], weiAmounts: wei_value[16]})
 Distributed: event({uuid: bytes32, payee: address, weiAmount: wei_value})
-Refunded: event({uuid: bytes32, payee: address, weiAmount: wei_value})
 Applied: event({uuid: bytes32, applicant: address})
 Approved: event({uuid: bytes32, applicant: address})
 Submitted: event({uuid: bytes32, applicant: address, ipfsHash: bytes32})
 OwnerTransferred: event({transfer: address})
 ApplicationMinimumTimespanChanged: event({applicationMinimumTimespan: timedelta})
 SubmissionMinimumTimespanChanged: event({submissionMinimumTimespan: timedelta})
-RefundableTimespanChanged: event({refundableTimespan: timedelta})
-DistributionEndTimespanChanged: event({distributionEndTimespan: timedelta})
-
-#
-# Constants
-#
-# 14 days
-# DEFAULT_REFUNDABLE_TIMESPAN: constant(uint256(sec)) = 1209600
 
 #
 # State Variables
@@ -63,12 +52,6 @@ deposits: map(bytes32, map(address, wei_value))
 
 # Research Hunt Struct Mappings
 requests: map(bytes32, ResearchRequest)
-
-# Distribution timespan
-distributionEndTimespan: timedelta
-
-# Refundable timespan
-refundableTimespan: timedelta
 
 # Minimum timespan of application
 applicationMinimumTimespan: timedelta
@@ -91,14 +74,6 @@ def __init__():
     # Submission Minimum Timespan is 1 day
     self.submissionMinimumTimespan = 1 * 60
     # self.submissionMinimumTimespan = 1 * 24 * 60 * 60
-
-    # DistributionTimespan is 3 Days
-    self.distributionEndTimespan = 5 * 60
-    # self.distributionEndTimespan = 3 * 24 * 60 * 60
-
-    # RefundableTimespan is 14 Days
-    self.refundableTimespan = 1 * 60
-    # self.refundableTimespan = 14 * 24 * 60 * 60
 
 #
 # Research Hunt Functions
@@ -134,8 +109,6 @@ def createResearchRequest(_uuid: bytes32, _applicationEndAt: timestamp, _submiss
         createdAt: block.timestamp,
         applicationEndAt: _applicationEndAt,
         submissionEndAt: _submissionEndAt,
-        distributionAt: _submissionEndAt + self.distributionEndTimespan,
-        refundableAt: _submissionEndAt + self.refundableTimespan,
         reports: [EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32, EMPTY_BYTES32],
         reporters: [ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS],
         reporterApprovements: [False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False],
@@ -154,9 +127,7 @@ def createResearchRequest(_uuid: bytes32, _applicationEndAt: timestamp, _submiss
         self.requests[_uuid].minimumReward,
         self.requests[_uuid].createdAt,
         self.requests[_uuid].applicationEndAt,
-        self.requests[_uuid].submissionEndAt,
-        self.requests[_uuid].distributionAt,
-        self.requests[_uuid].refundableAt)
+        self.requests[_uuid].submissionEndAt)
 
 @public
 def applyResearchReport(_uuid: bytes32):
@@ -204,18 +175,26 @@ def approveResearchReport(_uuid: bytes32, _reporter: address):
     # Guard 3: whether the request owner is the sender
     assert self.requests[_uuid].owner == msg.sender 
 
-    # Approvement Flag
-    hasApproved: bool = False
+    # Reporter including Flag
+    hasApplied: bool = False
+
+    # reporter index
+    reporterIndex: int128 = 0
 
     # Get sender index
     for index in range(16):
         if self.requests[_uuid].reporters[index] == _reporter:
-            self.requests[_uuid].reporterApprovements[index] = True
-            hasApproved = True
+            reporterIndex = index
+            hasApplied = True
             break
 
-    # Guard 4: whether the sender has been approved
-    assert hasApproved
+    # Guard 4: whether reporter has applied
+    assert hasApplied
+
+    # Guard 5: Reporter has not Approved
+    assert self.requests[_uuid].reporterApprovements[reporterIndex] == False
+
+    self.requests[_uuid].reporterApprovements[reporterIndex] = True
 
     # Event
     log.Approved(_uuid, _reporter)
@@ -229,7 +208,7 @@ def submitResearchReport(_uuid: bytes32, _ipfsHash: bytes32):
     assert block.timestamp < self.requests[_uuid].submissionEndAt
 
     # Sender including flag
-    hasSubmitted: bool = False
+    hasApplied: bool = False
 
     # Sender index
     senderIndex: int128 = 0
@@ -238,11 +217,17 @@ def submitResearchReport(_uuid: bytes32, _ipfsHash: bytes32):
     for index in range(16):
         if self.requests[_uuid].reporters[index] == msg.sender:
             senderIndex = index
-            hasSubmitted = True
+            hasApplied = True
             break
-    
-    # Guard 3: Sender has submitted
-    assert hasSubmitted 
+
+    # Guard 3: Sender has Applied
+    assert hasApplied
+
+    # Guard 4: Sender has Approved
+    assert self.requests[_uuid].reporterApprovements[senderIndex] == True
+
+    # Guard 5: ipfsHash is not blank
+    assert not _ipfsHash == EMPTY_BYTES32
 
     # Add reporter
     self.requests[_uuid].reports[senderIndex] = _ipfsHash
@@ -272,7 +257,6 @@ def addDepositToRequest(_uuid: bytes32):
     log.Deposited(_uuid, msg.sender, self.requests[_uuid].deposit)
 
 @public
-@payable
 def addMinimumRewardToRequest(_uuid: bytes32, _minimumRewardAddition: wei_value):
     # Guard 1: whether this request has been completed
     assert self.requests[_uuid].isCompleted == False
@@ -294,7 +278,6 @@ def addMinimumRewardToRequest(_uuid: bytes32, _minimumRewardAddition: wei_value)
 
 
 @public
-@payable
 def distribute(_uuid: bytes32, _amounts: wei_value[16]):
     # Guard 1: whether this request has been completed
     assert self.requests[_uuid].isCompleted == False
@@ -360,33 +343,6 @@ def distribute(_uuid: bytes32, _amounts: wei_value[16]):
     # For Bugs
     # log.Distributed(_uuid, reporters, rewards)
 
-@public
-@payable
-def refund(_uuid: bytes32):
-    # Guard 1: whether the address is not sender address
-    assert msg.sender == self.requests[_uuid].owner
-
-    # Guard 2: whether the current timestamp has gone over the submission end at
-    assert self.requests[_uuid].refundableAt <= block.timestamp
- 
-    # Culculate remain wei_value
-    amount: wei_value = self.requests[_uuid].deposit - self.requests[_uuid].payout
-
-    # Update the deposits amount
-    self.deposits[_uuid][msg.sender] = self.deposits[_uuid][msg.sender] - amount
-
-    # Update the research request payout
-    self.requests[_uuid].payout = self.requests[_uuid].payout + amount
-
-    # Update the research request completed flag
-    self.requests[_uuid].isCompleted = True
-
-    # Send the amount to the receiver address
-    send(msg.sender, amount)
-
-    # Event
-    log.Refunded(_uuid, msg.sender, amount)
-
 #
 # OwnerOnly Functions
 #
@@ -428,31 +384,3 @@ def setSubmissionMinimumTimespan(_submissionMinimumTimespan: timedelta):
 
     # Event
     log.SubmissionMinimumTimespanChanged(self.submissionMinimumTimespan)
-
-@public
-def setDistributionEndTimespan(_distributionEndTimespan: timedelta):
-    # Guard 1: only owner
-    assert self.owner == msg.sender
-
-    # Guard 2: Positive value
-    assert _distributionEndTimespan > 0
-
-    # Set distribution timespan
-    self.distributionEndTimespan = _distributionEndTimespan
-
-    # Event
-    log.DistributionEndTimespanChanged(self.distributionEndTimespan)
-
-@public
-def setRefundableTimespan(_refundableTimespan: timedelta):
-    # Guard 1: only owner
-    assert self.owner == msg.sender
-
-    # Guard 2: Positive value
-    assert _refundableTimespan > 0
-
-    # Set refundable timespan
-    self.refundableTimespan = _refundableTimespan
-
-    # Event
-    log.RefundableTimespanChanged(self.refundableTimespan)
