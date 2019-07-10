@@ -111,57 +111,6 @@ contract("ResearchHunt", ([account, reporter1, reporter2, reporter3]) => {
     }, 'SubmissionMinimumTimespanChanged event should be emitted.');
   });
 
-  it("should be set distribution end timespan", async () => {
-    const researchHunt = await ResearchHunt.deployed();
-    const result = await researchHunt.setDistributionEndTimespan(4 * 24 * 60 * 60, { from: account });
-
-    truffleAssert.eventEmitted(result, 'DistributionEndTimespanChanged', (ev) => {
-      return ev.distributionEndTimespan == (4 * 24 * 60 * 60)
-    }, 'DistributionEndTimespanChanged event should be emitted.');
-  });
-
-  it("should be set refundable timespan", async () => {
-    const researchHunt = await ResearchHunt.deployed();
-
-    const result = await researchHunt.setRefundableTimespan(18 * 24 * 60 * 60, { from: account });
-
-    truffleAssert.eventEmitted(result, 'RefundableTimespanChanged', (ev) => {
-      return ev.refundableTimespan == (18 * 24 * 60 * 60)
-    }, 'RefundableTimespanChanged event should be emitted.');
-  });
-
-  it("should be refunded with correct refundable timespan", async () => {
-    const researchHunt = await ResearchHunt.deployed();
-
-    const result = await researchHunt.createResearchRequest(uuid,
-      moment().add(2, 'days').unix(),
-      moment().add(4, 'days').unix(),
-      minimumReward,
-      { from: account, value: amount });
-
-    await testrpc.advanceTime(18 * 24 * 60 * 60);
-
-    const resultRefund = await researchHunt.refund(uuid, { from: account });
-
-    truffleAssert.eventEmitted(resultRefund, 'Refunded', (ev) => {
-      return ev.weiAmount == amount
-    }, 'Withdrawn event should be emitted.');
-  });
-
-  it("should not be refunded with incorrect refund timespan", async () => {
-    const researchHunt = await ResearchHunt.deployed();
-
-    await researchHunt.createResearchRequest(uuid,
-      moment().add(2, 'days').unix(),
-      moment().add(4, 'days').unix(),
-      minimumReward,
-      { from: account, value: amount });
-
-    await testrpc.advanceTime(18 * 24 * 60 * 60 - 1);
-
-    await expectThrow(researchHunt.refund(uuid, { from: account }));
-  });
-
   it("should be distributed with correct distribution timespan", async () => {
     const researchHunt = await ResearchHunt.deployed();
 
