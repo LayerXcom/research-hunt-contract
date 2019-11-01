@@ -7,7 +7,7 @@
     "test": "test"
   },
   "dependencies": {
-    "lodash": "^4.17.11",
+    "lodash": "^4.17.13",
     "moment": "^2.24.0",
     "truffle-assertions": "^0.8.2",
     "truffle": "^5.0.24"
