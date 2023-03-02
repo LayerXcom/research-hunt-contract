@@ -10,7 +10,7 @@
     "lodash": "^4.17.11",
     "moment": "^2.24.0",
     "truffle-assertions": "^0.8.2",
-    "truffle": "^5.0.24"
+    "truffle": "^5.7.9"
   },
   "devDependencies": {},
   "scripts": {
